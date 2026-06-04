@@ -17,9 +17,10 @@ Implementado:
 - Home operativo con continuación de partida en curso.
 - Gestión local de jugadores frecuentes e invitados.
 - Crear, editar y eliminar jugadores.
+- Género hombre/mujer por jugador, con default hombre y copys principales adaptados.
 - Nueva partida por pasos:
   - selección de jugadores activos;
-  - orden horario de mesa con subir/bajar;
+  - orden horario de mesa con drag & drop desde handle compacto;
   - configuración manual de cartas V1;
   - validación de cantidad cartas/jugadores;
   - completar con civiles;
@@ -37,10 +38,11 @@ Implementado:
 - Preview privado de resolución nocturna y narración pública.
 - Confirmación fuerte de amanecer con evaluación de victoria.
 - Día con discusión, votación, reroll único antes de votar, defensa y cambios.
+- Cambios de voto puntuales con objetivo anterior visible por votante.
 - Romeo/Julieta:
   - voto compartido;
   - muerte por vínculo;
-  - selección de veneno en noche o día cuando corresponde.
+  - selección de veneno en alba nocturna o día cuando corresponde.
 - Confirmación de linchamiento y evaluación de victoria.
 - Logs privado/público visibles desde la app.
 - Cancelación de partida con resultado `CANCELADA`.
@@ -70,7 +72,6 @@ Implementado:
 
 ## Limitaciones conocidas
 
-- El flujo de cambios de voto se implementa como nueva carga de ronda completa para mantener discreción visual; el modo libre fino puede refinarse después.
 - Revertir una resolución completa todavía se hace con Deshacer; no hay editor específico de resolución histórica.
 - El build APK local usa `npm run apk:local`, requiere JDK + Android SDK instalados en la máquina y firma con debug keystore generada por Expo prebuild.
 - `npm audit` reporta un advisory moderado en `uuid` vía `expo`/`xcode`; no se aplicó `npm audit fix --force` porque propone bajar Expo a 46.
@@ -86,6 +87,9 @@ Implementado:
 - Inferencia automática de Civiles al cerrar la primera noche, sin botón intermedio.
 - Selecciones únicas por chip, sin botón de confirmación.
 - Targets vivos y muertos visibles en chips; muertos e inelegibles quedan deshabilitados con razón compacta al tocar.
+- Pasos nocturnos teatrales para roles sin actores vivos: se muestran igual, con objetivos deshabilitados, y Dios continúa manualmente.
+- Logs privados con nombres de personas, singular/plural y copys menos genéricos cuando el motor conoce los actores.
+- Íconos de rol para chips/logs compactos: Civil, Mafioso, Médico, Detective, Abuela, Romeo/Julieta y Prostituta.
 - Restricciones UI y dominio:
   - Prostituta no puede inhibirse a sí misma;
   - único Mafioso vivo no puede automatarse;

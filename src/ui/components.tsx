@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { FontAwesome6, MaterialCommunityIcons } from "@expo/vector-icons";
 import type { ReactNode } from "react";
 import {
   Image,
@@ -10,11 +10,16 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { gendered } from "../domain/copy";
 import type { PlayerState, RoleId } from "../domain/types";
 import { roleDefinitions } from "../data/roles";
 import { theme } from "./theme/tokens";
 
 export type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+type FontAwesome6IconName = React.ComponentProps<typeof FontAwesome6>["name"];
+type RoleIconDescriptor =
+  | { family: "material"; name: IconName }
+  | { family: "fontawesome6"; name: FontAwesome6IconName };
 
 interface ScreenProps {
   children: ReactNode;
@@ -226,6 +231,8 @@ export function PlayerChip({
       ]}
     >
       <Text style={styles.playerChipName} numberOfLines={1}>
+        {showSecrets && player.roleId ? <RoleIcon roleId={player.roleId} size={14} /> : null}
+        {showSecrets && player.roleId ? " " : null}
         {player.name}
       </Text>
       {showSecrets ? (
@@ -251,7 +258,7 @@ export function PlayerCard({ player, showSecrets = false }: PlayerCardProps) {
       </View>
       <View style={styles.badgeRow}>
         <Badge tone={player.alive ? "success" : "muted"}>
-          {player.alive ? "Vivo" : "Muerto"}
+          {player.alive ? gendered(player, "Vivo", "Viva") : gendered(player, "Muerto", "Muerta")}
         </Badge>
         {showSecrets && player.roleId ? (
           <Badge tone={roleDefinitions[player.roleId].team === "mafia" ? "danger" : "info"}>
@@ -367,9 +374,10 @@ export function HintToast({ message }: HintToastProps) {
 interface LogPanelProps {
   privateLog: string[];
   publicLog: string[];
+  players?: PlayerState[];
 }
 
-export function LogPanel({ privateLog, publicLog }: LogPanelProps) {
+export function LogPanel({ privateLog, publicLog, players = [] }: LogPanelProps) {
   return (
     <View style={styles.logGrid}>
       <Card>
@@ -379,7 +387,7 @@ export function LogPanel({ privateLog, publicLog }: LogPanelProps) {
         ) : (
           privateLog.map((line, index) => (
             <Text key={`${line}-${index}`} style={styles.logLine}>
-              {line}
+              {renderLogLine(line, players)}
             </Text>
           ))
         )}
@@ -402,6 +410,103 @@ export function LogPanel({ privateLog, publicLog }: LogPanelProps) {
 
 export function BrandMark() {
   return <Image resizeMode="cover" source={theme.assets.cardBack} style={styles.brandMark} />;
+}
+
+interface RoleIconProps {
+  roleId: RoleId;
+  size?: number;
+}
+
+export function RoleIcon({ roleId, size = 16 }: RoleIconProps) {
+  const icon = roleIcon(roleId);
+
+  if (icon.family === "fontawesome6") {
+    return (
+      <FontAwesome6
+        color={roleIconColor(roleId)}
+        name={icon.name}
+        size={size}
+      />
+    );
+  }
+
+  return (
+    <MaterialCommunityIcons
+      color={roleIconColor(roleId)}
+      name={icon.name}
+      size={size}
+    />
+  );
+}
+
+export function roleIcon(roleId: RoleId): RoleIconDescriptor {
+  if (roleId === "civil") return { family: "material", name: "account-outline" };
+  if (roleId === "mafioso") return { family: "material", name: "pistol" };
+  if (roleId === "medico") return { family: "material", name: "medical-bag" };
+  if (roleId === "detective") return { family: "material", name: "magnify" };
+  if (roleId === "abuela") return { family: "fontawesome6", name: "gun" };
+  if (roleId === "romeo" || roleId === "julieta") return { family: "material", name: "heart" };
+  if (roleId === "prostituta") return { family: "material", name: "lipstick" };
+
+  return { family: "material", name: "account-outline" };
+}
+
+function roleIconColor(roleId: RoleId): string {
+  const role = roleDefinitions[roleId];
+
+  if (role.team === "mafia") {
+    return theme.colors.brandRedSoft;
+  }
+
+  if (roleId === "medico") return theme.colors.success;
+  if (roleId === "detective") return theme.colors.info;
+  if (roleId === "abuela") return theme.colors.warning;
+  if (roleId === "romeo" || roleId === "julieta") return theme.colors.brandRedSoft;
+
+  return theme.colors.textMuted;
+}
+
+function renderLogLine(line: string, players: readonly PlayerState[]): ReactNode {
+  const knownPlayers = players
+    .filter((player) => player.roleId)
+    .slice()
+    .sort((a, b) => b.name.length - a.name.length);
+
+  if (knownPlayers.length === 0) {
+    return line;
+  }
+
+  const nodes: ReactNode[] = [];
+  let cursor = 0;
+
+  while (cursor < line.length) {
+    const match = knownPlayers
+      .map((player) => ({
+        player,
+        index: line.indexOf(player.name, cursor)
+      }))
+      .filter((candidate) => candidate.index !== -1)
+      .sort((a, b) => a.index - b.index || b.player.name.length - a.player.name.length)[0];
+
+    if (!match) {
+      nodes.push(line.slice(cursor));
+      break;
+    }
+
+    if (match.index > cursor) {
+      nodes.push(line.slice(cursor, match.index));
+    }
+
+    nodes.push(
+      <Text key={`${match.player.id}-${match.index}`}>
+        {match.player.roleId ? <RoleIcon roleId={match.player.roleId} size={13} /> : null}
+        {match.player.name}
+      </Text>
+    );
+    cursor = match.index + match.player.name.length;
+  }
+
+  return nodes;
 }
 
 function buttonTextColor(variant: NonNullable<ButtonProps["variant"]>, disabled: boolean) {

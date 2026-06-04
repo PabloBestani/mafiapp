@@ -7,6 +7,7 @@ function player(id: string, roleId: RoleId, alive = true): PlayerState {
   return {
     id,
     name: id,
+    gender: "hombre",
     roleId,
     alive,
     seatIndex: Number(id.replace(/\D/g, "")) || 0

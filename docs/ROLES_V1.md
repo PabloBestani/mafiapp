@@ -132,6 +132,7 @@ Pipeline V1:
    - Antes de morir, puede envenenar a un jugador vivo.
    - Si ambos amantes mueren simultáneamente en la misma ventana de resolución, ninguno envenena.
    - Si la primera muerte ocurre de noche y el segundo amante estaba inhibido esa noche, muere sin envenenar.
+   - Si corresponde veneno nocturno, la app primero anuncia el preview público del amanecer y recién en ese estado de alba el amante elige a quién se lleva.
 8. **Aplicar envenenamientos:** los objetivos marcados por Romeo/Julieta mueren por envenenamiento.
    - El veneno atraviesa blindajes.
    - El veneno no puede ser salvado por Médico.

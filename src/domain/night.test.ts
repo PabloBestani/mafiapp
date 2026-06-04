@@ -12,6 +12,7 @@ function player(
   return {
     id,
     name: id,
+    gender: "hombre",
     roleId,
     alive,
     seatIndex

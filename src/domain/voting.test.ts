@@ -11,6 +11,7 @@ function player(id: string, roleId: RoleId, seatIndex: number): PlayerState {
   return {
     id,
     name: id,
+    gender: "hombre",
     roleId,
     alive: true,
     seatIndex

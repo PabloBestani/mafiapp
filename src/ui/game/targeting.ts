@@ -1,4 +1,5 @@
 import type { NightActions } from "../../domain/night";
+import { gendered } from "../../domain/copy";
 import type { PlayerId, PlayerState, RoleId } from "../../domain/types";
 
 export interface TargetOption {
@@ -62,7 +63,7 @@ export function voteTargetGroups(
     orderedPlayers(players).map((player) => ({
       player,
       disabledReason: !player.alive
-        ? "Muerto"
+        ? gendered(player, "Muerto", "Muerta")
         : player.id === voterId
           ? "Sin autovoto"
           : forcedVotePartner?.id === player.id
@@ -90,7 +91,11 @@ function nightActionDisabledReason(
   actorIds: readonly PlayerId[]
 ): string | null {
   if (!player.alive) {
-    return "Muerto";
+    return gendered(player, "Muerto", "Muerta");
+  }
+
+  if (actorIds.length === 0) {
+    return "Nadie actúa";
   }
 
   if (roleId === "prostituta" && actorIds.includes(player.id)) {
@@ -110,7 +115,7 @@ function nightActionDisabledReason(
 
 function loverPoisonDisabledReason(player: PlayerState, loverId: PlayerId): string | null {
   if (!player.alive) {
-    return "Muerto";
+    return gendered(player, "Muerto", "Muerta");
   }
 
   if (player.id === loverId) {

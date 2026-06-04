@@ -168,7 +168,19 @@ Estados:
 
 Debe mostrar nombre siempre. Rol solo con ojo activo o dentro de Correcciones.
 
+Cuando el rol sea visible, el chip puede anteponer ícono de rol para ahorrar espacio.
+
 Cuando un chip está deshabilitado por regla de juego, debe seguir visible y responder al toque con una razón compacta de 1 a 5 palabras. Ejemplos: `Muerto`, `Sin autovoto`, `No puede automatarse`.
+
+Íconos V1:
+
+- Civil: `account-outline`.
+- Mafioso: `pistol`.
+- Médico: `medical-bag`.
+- Detective: `magnify`.
+- Abuela con Escopeta: `gun`.
+- Romeo/Julieta: `heart`.
+- Prostituta: `lipstick`.
 
 ### PlayerCard
 

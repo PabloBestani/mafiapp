@@ -102,6 +102,7 @@ function player(id: string, roleId: RoleId, seatIndex: number, alive = true): Pl
   return {
     id,
     name: id,
+    gender: "hombre",
     roleId,
     alive,
     seatIndex

@@ -1,4 +1,5 @@
 import { roleDefinitions } from "../data/roles";
+import { formatPlayerNames, gendered, pluralVerb } from "./copy";
 import { evaluateVictory } from "./victory";
 import { pickClosestToTarget } from "./seating";
 import type { GameResult, PlayerId, PlayerState, RoleId } from "./types";
@@ -103,11 +104,13 @@ export function resolveNight(input: NightResolutionInput): NightResolution {
         commonKillAttempts,
         privateEvents,
         random,
-        "Mafia"
+        formatActorAction(enabledMafias, "la apuntó", "la apuntaron")
       );
     } else {
       commonKillAttempts.push({ targetId: mafiaTarget.id, source: "MAFIA" });
-      privateEvents.push(`La Mafia intentó matar a ${mafiaTarget.name}.`);
+      privateEvents.push(
+        `${formatPlayerNames(enabledMafias)} ${pluralVerb(enabledMafias, "intentó", "intentaron")} matar a ${mafiaTarget.name}.`
+      );
     }
   }
 
@@ -117,7 +120,7 @@ export function resolveNight(input: NightResolutionInput): NightResolution {
   if (doctorTarget && enabledDoctors.length > 0) {
     if (grandma && doctorTarget.id === grandma.id && !grandmaInhibited) {
       privateEvents.push(
-        "Los Médicos apuntaron a la Abuela; la protección no se aplica."
+        `${formatActorAction(enabledDoctors, "apuntó", "apuntaron")} a la Abuela; la protección no se aplica.`
       );
       addGrandmaShot(
         players,
@@ -126,11 +129,13 @@ export function resolveNight(input: NightResolutionInput): NightResolution {
         commonKillAttempts,
         privateEvents,
         random,
-        "Médicos"
+        formatActorAction(enabledDoctors, "la apuntó", "la apuntaron")
       );
     } else {
       protectedId = doctorTarget.id;
-      privateEvents.push(`Los Médicos protegieron a ${doctorTarget.name}.`);
+      privateEvents.push(
+        `${formatPlayerNames(enabledDoctors)} ${pluralVerb(enabledDoctors, "protegió", "protegieron")} a ${doctorTarget.name}.`
+      );
     }
   }
 
@@ -237,7 +242,7 @@ function addGrandmaShot(
 
   commonKillAttempts.push({ targetId: victim.id, source: "GRANDMA" });
   privateEvents.push(
-    `La Abuela disparó contra ${victim.name} porque ${sourceLabel} la apuntó.`
+    `La Abuela disparó contra ${victim.name} porque ${sourceLabel}.`
   );
 }
 
@@ -278,12 +283,12 @@ function resolveDetectiveAction(
       commonKillAttempts,
       privateEvents,
       random,
-      "Detective"
+      formatActorAction(enabledDetectives, "la apuntó", "la apuntaron")
     );
   }
 
   privateEvents.push(
-    `Investigacion sobre ${target.name}: ${
+    `${formatPlayerNames(aliveDetectives)} ${pluralVerb(aliveDetectives, "investigó", "investigaron")} a ${target.name}: ${
       reportedTruth ? "Mafioso" : "No Mafioso"
     }.`
   );
@@ -321,7 +326,7 @@ function applyCommonKills(
 
     if (target.id === protectedId) {
       savedIds.add(target.id);
-      privateEvents.push(`${target.name} fue salvado por los Médicos.`);
+      privateEvents.push(`${target.name} ${gendered(target, "fue salvado", "fue salvada")}.`);
       return;
     }
 
@@ -375,7 +380,9 @@ function resolveLoverLink(
   privateEvents.push(`${survivor.name} murió por vínculo de Romeo y Julieta.`);
 
   if (inhibitedIds.has(survivor.id)) {
-    privateEvents.push(`${survivor.name} estaba inhibido y no envenenó.`);
+    privateEvents.push(
+      `${survivor.name} ${gendered(survivor, "estaba inhibido", "estaba inhibida")} y no envenenó.`
+    );
     return { pendingLoverPoison: null };
   }
 
@@ -406,6 +413,14 @@ function isStrictMafia(player: PlayerState): boolean {
 
 function isLover(player: PlayerState): boolean {
   return player.roleId === "romeo" || player.roleId === "julieta";
+}
+
+function formatActorAction(
+  actors: readonly PlayerState[],
+  singularAction: string,
+  pluralAction: string
+): string {
+  return `${formatPlayerNames(actors)} ${pluralVerb(actors, singularAction, pluralAction)}`;
 }
 
 function buildPublicNarration(

@@ -15,6 +15,8 @@ export type PlayerId = string;
 
 export type PlayerKind = "frequent" | "guest";
 
+export type PlayerGender = "hombre" | "mujer";
+
 export type Team = "pueblo" | "mafia";
 
 export type GameStatus =
@@ -61,6 +63,7 @@ export interface RoleDefinition {
 export interface PlayerState {
   id: PlayerId;
   name: string;
+  gender: PlayerGender;
   roleId?: RoleId;
   alive: boolean;
   seatIndex: number;
@@ -72,6 +75,7 @@ export interface PlayerProfile {
   id: PlayerId;
   name: string;
   kind: PlayerKind;
+  gender: PlayerGender;
   createdAt: string;
   updatedAt: string;
 }

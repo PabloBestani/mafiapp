@@ -21,6 +21,15 @@ export const migrations: readonly Migration[] = [
     version: 1,
     name: "initial_offline_storage",
     statements: createSchemaStatements
+  },
+  {
+    version: 2,
+    name: "add_player_gender",
+    statements: [
+      `ALTER TABLE players
+       ADD COLUMN gender TEXT NOT NULL DEFAULT 'hombre'
+       CHECK (gender IN ('hombre', 'mujer'));`
+    ]
   }
 ] as const;
 

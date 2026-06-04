@@ -1,4 +1,4 @@
-import type { GameState, LastGameSetup } from "../domain/types";
+import type { GameState, LastGameSetup, PlayerGender } from "../domain/types";
 import type { GameRepository, SaveGameOptions, UndoSnapshot } from "./gameRepository";
 import type { SqlDatabase } from "./sqlDriver";
 
@@ -44,7 +44,7 @@ export class SQLiteGameRepository implements GameRepository {
       [gameId]
     );
 
-    return row ? parseJson<GameState>(row.snapshot_json) : null;
+    return row ? parseGameState(row.snapshot_json) : null;
   }
 
   async saveGame(game: GameState, options: SaveGameOptions = {}): Promise<void> {
@@ -125,7 +125,7 @@ export class SQLiteGameRepository implements GameRepository {
         row.id
       ]);
 
-      return parseJson<GameState>(row.snapshot_json);
+      return parseGameState(row.snapshot_json);
     });
   }
 
@@ -190,11 +190,27 @@ function mapUndoSnapshot(row: UndoSnapshotRow): UndoSnapshot {
   return {
     id: row.id,
     gameId: row.game_id,
-    snapshot: parseJson<GameState>(row.snapshot_json),
+    snapshot: parseGameState(row.snapshot_json),
     reason: row.reason,
     strongCheckpoint: row.strong_checkpoint === 1,
     createdAt: row.created_at
   };
+}
+
+function parseGameState(value: string): GameState {
+  const game = parseJson<GameState>(value);
+
+  return {
+    ...game,
+    players: game.players.map((player) => ({
+      ...player,
+      gender: normalizeGender(player.gender)
+    }))
+  };
+}
+
+function normalizeGender(gender: PlayerGender | undefined): PlayerGender {
+  return gender === "mujer" ? "mujer" : "hombre";
 }
 
 function parseJson<T>(value: string): T {

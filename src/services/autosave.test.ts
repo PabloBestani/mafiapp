@@ -60,6 +60,7 @@ function createGame(id: string): GameState {
       {
         id: "p1",
         name: "Pablo",
+        gender: "hombre",
         roleId: "mafioso",
         alive: true,
         seatIndex: 0
@@ -67,6 +68,7 @@ function createGame(id: string): GameState {
       {
         id: "p2",
         name: "Sofi",
+        gender: "mujer",
         roleId: "civil",
         alive: true,
         seatIndex: 1

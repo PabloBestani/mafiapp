@@ -10,6 +10,7 @@ import {
   buildFirstNightSteps,
   canInferCivilians,
   canStartGame,
+  changeVote,
   correctPlayerRole,
   castCurrentVote,
   completeDraftWithCivilians,
@@ -20,6 +21,7 @@ import {
   inferCivilianRoles,
   movePlayerSeat,
   moveSeat,
+  moveSeatToIndex,
   rerollVotingSession,
   setRoleCount,
   togglePlayerAlive,
@@ -39,6 +41,7 @@ describe("setup flow", () => {
 
     expect(draft.selectedPlayerIds).toEqual(["p1", "p2"]);
     expect(moveSeat(draft.seatingOrder, "p2", -1)).toEqual(["p2", "p1"]);
+    expect(moveSeatToIndex(["p1", "p2", "p3"], "p1", 2)).toEqual(["p2", "p3", "p1"]);
     expect(draft.deck).toEqual({ mafioso: 1, civil: 1 });
     expect(canStartGame(draft)).toBe(true);
   });
@@ -101,6 +104,24 @@ describe("voting flow", () => {
     const session = applyDefense(createVotingSession(createGame().players, () => 0), "p2");
 
     expect(session.defendedToday).toEqual(["p2"]);
+  });
+
+  it("changes an existing vote without reopening the whole round", () => {
+    const game = createGameWithRoles([
+      ["p1", "civil"],
+      ["p2", "civil"],
+      ["p3", "civil"]
+    ]);
+    const session = {
+      ...createVotingSession(game.players, () => 0),
+      index: 3,
+      votes: { p1: "p2", p2: "p3", p3: "p2" }
+    };
+
+    const changed = changeVote(game.players, session, "p1", "p3");
+
+    expect(changed.index).toBe(3);
+    expect(changed.votes.p1).toBe("p3");
   });
 });
 
@@ -177,6 +198,7 @@ function createProfiles(count: number): PlayerProfile[] {
       id,
       name: id,
       kind: "frequent",
+      gender: "hombre",
       createdAt: now(),
       updatedAt: now()
     };
@@ -213,6 +235,6 @@ function createGameWithRoles(roles: Array<[string, RoleId]>): GameState {
 
 function player(id: string, seatIndex: number, roleId?: RoleId): PlayerState {
   return roleId
-    ? { id, name: id, alive: true, seatIndex, roleId }
-    : { id, name: id, alive: true, seatIndex };
+    ? { id, name: id, gender: "hombre", alive: true, seatIndex, roleId }
+    : { id, name: id, gender: "hombre", alive: true, seatIndex };
 }

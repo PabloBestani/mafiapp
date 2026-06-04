@@ -17,15 +17,18 @@ describe("SQLitePlayerRepository", () => {
       id: "p1",
       name: "Pablo",
       kind: "frequent",
+      gender: "hombre",
       createdAt: "2026-06-03T23:10:00.000Z",
       updatedAt: "2026-06-03T23:10:00.000Z"
     });
     await repository.renamePlayer("p1", "Pablo B.");
+    await repository.setPlayerGender("p1", "mujer");
 
     expect(await repository.getPlayer("p1")).toEqual({
       id: "p1",
       name: "Pablo B.",
       kind: "frequent",
+      gender: "mujer",
       createdAt: "2026-06-03T23:10:00.000Z",
       updatedAt: "2026-06-03T23:12:00.000Z"
     });

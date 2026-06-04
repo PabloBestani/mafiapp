@@ -116,6 +116,7 @@ function createPlayer(
   return {
     id,
     name,
+    gender: name === "Sofi" ? "mujer" : "hombre",
     roleId,
     alive: true,
     seatIndex

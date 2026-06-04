@@ -22,9 +22,13 @@ describe("storage migrations", () => {
        WHERE type = 'table'
        ORDER BY name;`
     );
+    const playerColumns = await database.all<{ name: string }>(
+      `PRAGMA table_info(players);`
+    );
 
     expect(migrations).toEqual([
-      { version: 1, name: "initial_offline_storage" }
+      { version: 1, name: "initial_offline_storage" },
+      { version: 2, name: "add_player_gender" }
     ]);
     expect(userVersion?.user_version).toBe(getLatestSchemaVersion());
     expect(tables.map((table) => table.name)).toEqual([
@@ -35,5 +39,6 @@ describe("storage migrations", () => {
       "schema_migrations",
       "sqlite_sequence"
     ]);
+    expect(playerColumns.map((column) => column.name)).toContain("gender");
   });
 });

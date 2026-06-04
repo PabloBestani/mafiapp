@@ -1,4 +1,5 @@
 import { completeWithCivilians, roleDefinitions, validateDeckConfiguration } from "../../data/roles";
+import { formatPlayerNames, gendered } from "../../domain/copy";
 import { castVoteWithLoverLink, resolveVotingOutcome, type VoteMap } from "../../domain/voting";
 import type {
   GameResult,
@@ -127,6 +128,30 @@ export function moveSeat(
   return next;
 }
 
+export function moveSeatToIndex(
+  seatingOrder: PlayerId[],
+  playerId: PlayerId,
+  targetIndex: number
+): PlayerId[] {
+  const currentIndex = seatingOrder.indexOf(playerId);
+  const nextIndex = Math.max(0, Math.min(seatingOrder.length - 1, targetIndex));
+
+  if (currentIndex === -1 || currentIndex === nextIndex) {
+    return seatingOrder;
+  }
+
+  const next = [...seatingOrder];
+  const [moved] = next.splice(currentIndex, 1);
+
+  if (!moved) {
+    return seatingOrder;
+  }
+
+  next.splice(nextIndex, 0, moved);
+
+  return next;
+}
+
 export function movePlayerSeat(
   game: GameState,
   playerId: PlayerId,
@@ -203,12 +228,13 @@ export function createGameFromDraft(
       throw new Error(`Missing player ${playerId}.`);
     }
 
-    return {
-      id: profile.id,
-      name: profile.name,
-      alive: true,
-      seatIndex
-    };
+      return {
+        id: profile.id,
+        name: profile.name,
+        gender: profile.gender,
+        alive: true,
+        seatIndex
+      };
   });
 
   return {
@@ -264,7 +290,7 @@ export function assignRole(
   return appendPrivateEvent(
     { ...game, players: nextPlayers },
     "ROLE_ASSIGNED",
-    `${roleDefinitions[roleId].name}: ${playerIds.length} asignado(s).`,
+    formatRoleAssignment(nextPlayers, roleId, playerIds),
     now
   );
 }
@@ -302,7 +328,7 @@ export function togglePlayerAlive(
   return appendPrivateEvent(
     { ...game, players: nextPlayers },
     "MANUAL_CORRECTION",
-    `Dios corrigió el estado de ${player?.name ?? playerId}: ${nextAlive ? "vivo" : "muerto"}.`,
+    `Dios corrigió el estado de ${player?.name ?? playerId}: ${nextAlive ? gendered(player, "vivo", "viva") : gendered(player, "muerto", "muerta")}.`,
     now
   );
 }
@@ -321,8 +347,16 @@ export function addPrivateNote(
 }
 
 export function inferCivilianRoles(game: GameState, now: () => string): GameState {
+  const previousCivilianIds = new Set(
+    game.players
+      .filter((player) => player.roleId === "civil")
+      .map((player) => player.id)
+  );
   const nextPlayers = game.players.map((player) =>
     player.roleId ? player : { ...player, roleId: "civil" as const }
+  );
+  const inferredCivilians = nextPlayers.filter(
+    (player) => player.roleId === "civil" && !previousCivilianIds.has(player.id)
   );
 
   return appendPrivateEvent(
@@ -333,7 +367,9 @@ export function inferCivilianRoles(game: GameState, now: () => string): GameStat
       players: nextPlayers
     },
     "ROLE_ASSIGNED",
-    "Civiles inferidos automáticamente.",
+    inferredCivilians.length > 0
+      ? `${formatPlayerNames(inferredCivilians)} ${inferredCivilians.length === 1 ? "queda" : "quedan"} como ${roleNameForCount("civil", inferredCivilians.length)}.`
+      : "No quedaban Civiles por cerrar.",
     now
   );
 }
@@ -351,9 +387,7 @@ export function buildNightActionSteps(game: GameState): RoleStep[] {
   return nightActionOrder
     .map((roleId) => ({
       roleId,
-      requiredCount: game.players.filter(
-        (player) => player.alive && player.roleId === roleId
-      ).length,
+      requiredCount: game.deck[roleId] ?? 0,
       selectedIds: []
     }))
     .filter((step) => step.requiredCount > 0);
@@ -446,6 +480,19 @@ export function castCurrentVote(
     ...session,
     votes: castVoteWithLoverLink(players, session.votes, voterId, targetId),
     index: Math.min(session.index + 1, session.order.length)
+  };
+}
+
+export function changeVote(
+  players: readonly PlayerState[],
+  session: VotingSession,
+  voterId: PlayerId,
+  targetId: PlayerId
+): VotingSession {
+  return {
+    ...session,
+    votes: castVoteWithLoverLink(players, session.votes, voterId, targetId),
+    index: session.order.length
   };
 }
 
@@ -600,10 +647,40 @@ function buildDayPublicNarration(
   }
 
   if (names.length === 1) {
-    return `Fue linchado ${names[0]}.`;
+    const player = players.find((candidate) => candidate.id === deaths[0]?.playerId);
+    return `${names[0]} ${gendered(player, "fue linchado", "fue linchada")}.`;
   }
 
-  return `Fueron linchados ${names.join(", ")}.`;
+  return `Murieron por votación ${names.join(", ")}.`;
+}
+
+function formatRoleAssignment(
+  players: readonly PlayerState[],
+  roleId: RoleId,
+  playerIds: readonly PlayerId[]
+): string {
+  const assignedPlayers = players.filter((player) => playerIds.includes(player.id));
+
+  if (assignedPlayers.length === 0) {
+    return `${roleNameForCount(roleId, 1)}: sin asignar.`;
+  }
+
+  return `${formatPlayerNames(assignedPlayers)} ${assignedPlayers.length === 1 ? "es" : "son"} ${roleNameForCount(roleId, assignedPlayers.length)}.`;
+}
+
+function roleNameForCount(roleId: RoleId, count: number): string {
+  if (count === 1) {
+    return roleDefinitions[roleId].name;
+  }
+
+  if (roleId === "mafioso") return "Mafiosos";
+  if (roleId === "medico") return "Médicos";
+  if (roleId === "detective") return "Detectives";
+  if (roleId === "civil") return "Civiles";
+  if (roleId === "abuela") return "Abuelas";
+  if (roleId === "prostituta") return "Prostitutas";
+
+  return roleDefinitions[roleId].name;
 }
 
 function findPlayerName(players: readonly PlayerState[], playerId: PlayerId): string {

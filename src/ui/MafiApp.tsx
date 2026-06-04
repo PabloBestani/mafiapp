@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   Alert,
+  PanResponder,
   Pressable,
   StatusBar,
   StyleSheet,
@@ -10,9 +12,10 @@ import {
 } from "react-native";
 
 import { roleDefinitions, validateDeckConfiguration } from "../data/roles";
+import { gendered } from "../domain/copy";
 import type { NightActions, NightResolution } from "../domain/night";
 import { resolveNight } from "../domain/night";
-import type { GameState, PlayerId, PlayerProfile, RoleId } from "../domain/types";
+import type { GameState, PlayerGender, PlayerId, PlayerProfile, RoleId } from "../domain/types";
 import { GameAutosaveService } from "../services/autosave";
 import { openMafiappDatabase } from "../storage/expoSqliteDriver";
 import { SQLiteGameRepository } from "../storage/sqliteGameRepository";
@@ -44,6 +47,7 @@ import {
   buildNightActionSteps,
   canStartGame,
   castCurrentVote,
+  changeVote,
   completeDraftWithCivilians,
   correctPlayerRole,
   createDraftFromGame,
@@ -53,7 +57,7 @@ import {
   getVotingOutcome as getSessionOutcome,
   inferCivilianRoles,
   movePlayerSeat,
-  moveSeat,
+  moveSeatToIndex,
   rerollVotingSession,
   resetVoteChangeCycle,
   setRoleCount,
@@ -96,6 +100,13 @@ const gameTabs: Array<{ value: GameTab; label: string }> = [
   { value: "logs", label: "Logs" }
 ];
 
+const genderOptions: Array<{ value: PlayerGender; label: string }> = [
+  { value: "hombre", label: "Hombre" },
+  { value: "mujer", label: "Mujer" }
+];
+
+const seatDragRowHeight = 48;
+
 export function MafiApp() {
   const [screen, setScreen] = useState<ScreenName>("home");
   const [players, setPlayers] = useState<PlayerProfile[]>([]);
@@ -104,6 +115,7 @@ export function MafiApp() {
   const [loading, setLoading] = useState(true);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState("");
+  const [playerGender, setPlayerGender] = useState<PlayerGender>("hombre");
   const [editingPlayerId, setEditingPlayerId] = useState<PlayerId | null>(null);
   const [editingName, setEditingName] = useState("");
   const [draft, setDraft] = useState<NewGameDraft>(() => createEmptyDraft());
@@ -118,12 +130,16 @@ export function MafiApp() {
   const [nightPreview, setNightPreview] = useState<NightResolution | null>(null);
   const [pendingNightPoisonTarget, setPendingNightPoisonTarget] = useState<PlayerId | null>(null);
   const [votingSession, setVotingSession] = useState<VotingSession | null>(null);
+  const [changingVoteForId, setChangingVoteForId] = useState<PlayerId | null>(null);
   const [lynchTargetId, setLynchTargetId] = useState<PlayerId | null>(null);
   const [dayPoisonTargetId, setDayPoisonTargetId] = useState<PlayerId | null>(null);
   const [correctionPlayerId, setCorrectionPlayerId] = useState<PlayerId | null>(null);
   const [correctionNote, setCorrectionNote] = useState("");
   const [targetHint, setTargetHint] = useState<string | null>(null);
+  const [seatDragPlayerId, setSeatDragPlayerId] = useState<PlayerId | null>(null);
   const targetHintTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seatDragStartIndex = useRef(0);
+  const seatDragLastIndex = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -201,12 +217,14 @@ export function MafiApp() {
       id: createId("player"),
       name,
       kind,
+      gender: playerGender,
       createdAt: now,
       updatedAt: now
     };
 
     setPlayers((current) => [...current, player].sort(comparePlayers));
     setPlayerName("");
+    setPlayerGender("hombre");
     await storage?.players.savePlayer(player);
   }
 
@@ -229,6 +247,19 @@ export function MafiApp() {
     setEditingPlayerId(null);
     setEditingName("");
     await storage?.players.renamePlayer(playerId, name);
+  }
+
+  async function savePlayerGender(playerId: PlayerId, gender: PlayerGender) {
+    setPlayers((current) =>
+      current
+        .map((player) =>
+          player.id === playerId
+            ? { ...player, gender, updatedAt: currentTime() }
+            : player
+        )
+        .sort(comparePlayers)
+    );
+    await storage?.players.setPlayerGender(playerId, gender);
   }
 
   async function deletePlayer(playerId: PlayerId) {
@@ -317,11 +348,13 @@ export function MafiApp() {
     setNightPreview(null);
     setPendingNightPoisonTarget(null);
     setVotingSession(null);
+    setChangingVoteForId(null);
     setLynchTargetId(null);
     setDayPoisonTargetId(null);
     setCorrectionPlayerId(null);
     setCorrectionNote("");
     setTargetHint(null);
+    setSeatDragPlayerId(null);
   }
 
   function showTargetDisabledReason(reason: string) {
@@ -334,6 +367,38 @@ export function MafiApp() {
     targetHintTimeout.current = setTimeout(() => {
       setTargetHint(null);
     }, 1600);
+  }
+
+  function createSeatDragHandlers(playerId: PlayerId, index: number, itemCount: number) {
+    return PanResponder.create({
+      onMoveShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        seatDragStartIndex.current = index;
+        seatDragLastIndex.current = index;
+        setSeatDragPlayerId(playerId);
+      },
+      onPanResponderMove: (_event, gesture) => {
+        const targetIndex = clamp(
+          seatDragStartIndex.current + Math.round(gesture.dy / seatDragRowHeight),
+          0,
+          Math.max(0, itemCount - 1)
+        );
+
+        if (targetIndex === seatDragLastIndex.current) {
+          return;
+        }
+
+        seatDragLastIndex.current = targetIndex;
+        setDraft((current) => ({
+          ...current,
+          seatingOrder: moveSeatToIndex(current.seatingOrder, playerId, targetIndex)
+        }));
+      },
+      onPanResponderRelease: () => setSeatDragPlayerId(null),
+      onPanResponderTerminate: () => setSeatDragPlayerId(null),
+      onShouldBlockNativeResponder: () => true
+    });
   }
 
   function renderCurrentScreen() {
@@ -368,7 +433,7 @@ export function MafiApp() {
             title="Logs"
           />
           <AppScroll>
-            <LogPanel privateLog={privateLogLines} publicLog={publicLogLines} />
+            <LogPanel privateLog={privateLogLines} publicLog={publicLogLines} players={game.players} />
           </AppScroll>
         </Screen>
       );
@@ -444,6 +509,7 @@ export function MafiApp() {
               style={styles.input}
               value={playerName}
             />
+            <SegmentedControl options={genderOptions} value={playerGender} onChange={setPlayerGender} />
             <View style={styles.actionGrid}>
               <Button icon="account-plus" label="Frecuente" onPress={() => void addPlayer("frequent")} />
               <Button icon="account-clock" label="Invitado" onPress={() => void addPlayer("guest")} />
@@ -483,11 +549,16 @@ export function MafiApp() {
                         <View>
                           <Text style={styles.sectionTitle}>{player.name}</Text>
                           <Text style={styles.meta}>
-                            {player.kind === "guest" ? "Invitado" : "Frecuente"}
+                            {player.kind === "guest" ? "Invitado" : "Frecuente"} · {genderLabel(player.gender)}
                           </Text>
                         </View>
                         <Badge>{player.kind === "guest" ? "Invitado" : "Frecuente"}</Badge>
                       </View>
+                      <SegmentedControl
+                        options={genderOptions}
+                        value={player.gender}
+                        onChange={(gender) => void savePlayerGender(player.id, gender)}
+                      />
                       <View style={styles.actionGrid}>
                         <Button
                           icon="pencil"
@@ -576,41 +647,30 @@ export function MafiApp() {
   }
 
   function renderSetupSeating() {
+    const seatingPlayers = draft.seatingOrder
+      .map((playerId) => players.find((candidate) => candidate.id === playerId))
+      .filter((player): player is PlayerProfile => Boolean(player));
+
     return (
       <Card>
         <Text style={styles.sectionTitle}>Orden horario</Text>
         <Text style={styles.meta}>Comienza por la izquierda de Dios.</Text>
-        {draft.seatingOrder.map((playerId, index) => {
-          const player = players.find((candidate) => candidate.id === playerId);
-
-          if (!player) return null;
+        {seatingPlayers.map((player, index) => {
+          const drag = createSeatDragHandlers(player.id, index, seatingPlayers.length);
+          const dragging = seatDragPlayerId === player.id;
 
           return (
-            <View key={playerId} style={styles.seatRow}>
+            <View key={player.id} style={[styles.seatRow, dragging ? styles.seatRow_dragging : null]}>
+              <Pressable
+                accessibilityLabel={`Reordenar ${player.name}`}
+                accessibilityRole="button"
+                style={styles.dragHandle}
+                {...drag.panHandlers}
+              >
+                <MaterialCommunityIcons color={theme.colors.textMuted} name="drag-vertical" size={22} />
+              </Pressable>
               <Text style={styles.seatNumber}>{index + 1}</Text>
               <Text style={styles.playerName}>{player.name}</Text>
-              <View style={styles.inlineActions}>
-                <Button
-                  icon="chevron-up"
-                  label="Subir"
-                  onPress={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      seatingOrder: moveSeat(current.seatingOrder, playerId, -1)
-                    }))
-                  }
-                />
-                <Button
-                  icon="chevron-down"
-                  label="Bajar"
-                  onPress={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      seatingOrder: moveSeat(current.seatingOrder, playerId, 1)
-                    }))
-                  }
-                />
-              </View>
             </View>
           );
         })}
@@ -698,7 +758,7 @@ export function MafiApp() {
           <SegmentedControl options={gameTabs} value={gameTab} onChange={setGameTab} />
           {gameTab === "focus" ? renderGameFocus(game) : null}
           {gameTab === "roster" ? renderRoster(game) : null}
-          {gameTab === "logs" ? <LogPanel privateLog={privateLogLines} publicLog={publicLogLines} /> : null}
+          {gameTab === "logs" ? <LogPanel privateLog={privateLogLines} publicLog={publicLogLines} players={game.players} /> : null}
         </AppScroll>
         <BottomActionBar
           secondary={{ icon: "cancel", label: "Cancelar partida", onPress: () => confirmCancel() }}
@@ -892,7 +952,7 @@ export function MafiApp() {
 
       return (
         <Card>
-          <Text style={styles.sectionTitle}>{role.name}</Text>
+          <Text style={styles.sectionTitle}>{roleCallName(step.roleId, step.requiredCount)}</Text>
           <Text style={styles.body}>{nightActionCopy(step.roleId, step.requiredCount)}</Text>
           {renderTargetGroups(targetGroups, {
             selectedId: targetId,
@@ -1031,17 +1091,21 @@ export function MafiApp() {
       );
     }
 
-    const role = roleDefinitions[step.roleId];
     const actorIds = currentGame.players
       .filter((player) => player.alive && player.roleId === step.roleId)
       .map((player) => player.id);
     const targetId = getNightActionTarget(nightActions, step.roleId);
     const targetGroups = nightActionTargetGroups(currentGame.players, step.roleId, actorIds);
+    const hasActors = actorIds.length > 0;
 
     return (
       <Card>
-        <Text style={styles.sectionTitle}>{role.name}</Text>
-        <Text style={styles.body}>{nightActionCopy(step.roleId, step.requiredCount)}</Text>
+        <Text style={styles.sectionTitle}>{roleCallName(step.roleId, step.requiredCount)}</Text>
+        <Text style={styles.body}>
+          {hasActors
+            ? nightActionCopy(step.roleId, step.requiredCount)
+            : "Mantené el llamado para no revelar información. Nadie elige objetivo."}
+        </Text>
         {renderTargetGroups(targetGroups, {
           selectedId: targetId,
           onSelect: (playerId) => {
@@ -1049,6 +1113,14 @@ export function MafiApp() {
             setNightActionIndex((index) => index + 1);
           }
         })}
+        {!hasActors ? (
+          <Button
+            icon="arrow-right"
+            label="Continuar"
+            onPress={() => setNightActionIndex((index) => index + 1)}
+            variant="primary"
+          />
+        ) : null}
       </Card>
     );
   }
@@ -1068,8 +1140,11 @@ export function MafiApp() {
 
       return (
         <Card>
+          <Text style={styles.sectionTitle}>Alba</Text>
+          <Text style={styles.body}>{nightPreview.publicNarration}</Text>
+          <Text style={styles.meta}>El vínculo se resuelve con todos despiertos.</Text>
           <Text style={styles.sectionTitle}>Veneno de Romeo/Julieta</Text>
-          <Text style={styles.body}>El amante sobreviviente puede llevarse a alguien.</Text>
+          <Text style={styles.body}>El amante que queda elige a quién se lleva.</Text>
           {renderTargetGroups(targetGroups, {
             selectedId: pendingNightPoisonTarget,
             onSelect: setPendingNightPoisonTarget
@@ -1142,6 +1217,11 @@ export function MafiApp() {
 
   function renderVoting(currentGame: GameState) {
     const session = votingSession ?? createVotingSession(currentGame.players);
+
+    if (currentGame.status === "DAY_VOTE_CHANGES") {
+      return renderVoteChanges(currentGame, session);
+    }
+
     const currentVoterId = session.order[session.index];
     const currentVoter = currentGame.players.find((player) => player.id === currentVoterId);
     const currentAutoVote = currentVoterId ? session.votes[currentVoterId] : undefined;
@@ -1182,6 +1262,78 @@ export function MafiApp() {
       );
     }
 
+    return renderVotingOutcome(currentGame, session);
+  }
+
+  function renderVoteChanges(currentGame: GameState, session: VotingSession) {
+    const aliveVoters = session.order
+      .map((voterId) => currentGame.players.find((player) => player.id === voterId && player.alive))
+      .filter((player): player is GameState["players"][number] => Boolean(player));
+    const selectedVoter = aliveVoters.find((player) => player.id === changingVoteForId) ?? null;
+    const targetGroups = selectedVoter ? voteTargetGroups(currentGame.players, selectedVoter.id) : null;
+
+    return (
+      <View style={styles.stack}>
+        <Card>
+          <Text style={styles.sectionTitle}>Cambios de voto</Text>
+          <Text style={styles.body}>Elegí un votante y tocá su nuevo objetivo.</Text>
+          <View style={styles.stack}>
+            {aliveVoters.map((voter) => {
+              const currentTargetId = session.votes[voter.id];
+              const currentTarget = currentGame.players.find((player) => player.id === currentTargetId);
+              const selected = changingVoteForId === voter.id;
+
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  key={voter.id}
+                  onPress={() => setChangingVoteForId(voter.id)}
+                  style={({ pressed }) => [
+                    styles.voteChangeRow,
+                    selected ? styles.voteChangeRow_selected : null,
+                    pressed ? styles.voteChangeRow_pressed : null
+                  ]}
+                >
+                  <View style={styles.flex}>
+                    <Text style={styles.playerName}>{voter.name}</Text>
+                    <Text style={styles.meta}>
+                      Voto actual: {currentTarget?.name ?? "sin voto"}
+                    </Text>
+                  </View>
+                  <MaterialCommunityIcons
+                    color={selected ? theme.colors.sage : theme.colors.textMuted}
+                    name={selected ? "pencil" : "pencil-outline"}
+                    size={20}
+                  />
+                </Pressable>
+              );
+            })}
+          </View>
+        </Card>
+
+        {selectedVoter && targetGroups ? (
+          <Card>
+            <Text style={styles.sectionTitle}>Nuevo voto de {selectedVoter.name}</Text>
+            <Text style={styles.meta}>
+              Antes votaba a {playerNameFromId(currentGame.players, session.votes[selectedVoter.id])}.
+            </Text>
+            {renderTargetGroups(targetGroups, {
+              selectedId: session.votes[selectedVoter.id] ?? null,
+              onSelect: (playerId) => {
+                setVotingSession(changeVote(currentGame.players, session, selectedVoter.id, playerId));
+                setChangingVoteForId(null);
+              }
+            })}
+          </Card>
+        ) : null}
+
+        {renderVotingOutcome(currentGame, session)}
+      </View>
+    );
+  }
+
+  function renderVotingOutcome(currentGame: GameState, session: VotingSession) {
     const outcome = getSessionOutcome(session);
 
     if (outcome.kind === "TIE") {
@@ -1193,6 +1345,7 @@ export function MafiApp() {
             label="Volver a discusión"
             onPress={() => {
               setVotingSession(null);
+              setChangingVoteForId(null);
               void commitGame({ ...currentGame, status: "DAY_DISCUSSION" }, currentGame, "vote-tie");
             }}
             variant="primary"
@@ -1212,6 +1365,7 @@ export function MafiApp() {
             label="Registrar defensa"
             onPress={() => {
               setVotingSession(applyDefense(session, outcome.defendantId));
+              setChangingVoteForId(null);
               void commitGame({ ...currentGame, status: "DAY_DEFENSE" }, currentGame, "defense");
             }}
             variant="primary"
@@ -1225,13 +1379,16 @@ export function MafiApp() {
       return (
         <Card>
           <Text style={styles.sectionTitle}>Linchamiento</Text>
-          <Text style={styles.body}>{executed?.name ?? outcome.executedId} será ejecutado.</Text>
+          <Text style={styles.body}>
+            {executed?.name ?? outcome.executedId} {gendered(executed, "será ejecutado", "será ejecutada")}.
+          </Text>
           <Text style={styles.meta}>{outcome.reasons.join(", ")}</Text>
           <Button
             icon="gavel"
             label="Revisar linchamiento"
             onPress={() => {
               setLynchTargetId(outcome.executedId);
+              setChangingVoteForId(null);
               void commitGame(
                 { ...currentGame, status: "DAY_EXECUTION_CONFIRMED" },
                 currentGame,
@@ -1255,14 +1412,15 @@ export function MafiApp() {
     return (
       <Card>
         <Text style={styles.sectionTitle}>Cambios de voto</Text>
-        <Text style={styles.body}>Se vuelve a cargar la ronda para registrar cambios libres.</Text>
+        <Text style={styles.body}>El acusado ya habló. Ahora podés ajustar votos puntuales antes de resolver.</Text>
         <Button
           icon="vote"
-          label="Cargar cambios"
+          label="Cambiar votos"
           onPress={() => {
             if (votingSession) {
-              setVotingSession(resetVoteChangeCycle({ ...votingSession, index: 0 }));
+              setVotingSession(resetVoteChangeCycle(votingSession));
             }
+            setChangingVoteForId(null);
             void commitGame({ ...currentGame, status: "DAY_VOTE_CHANGES" }, currentGame, "vote-changes");
           }}
           variant="primary"
@@ -1401,11 +1559,11 @@ export function MafiApp() {
                       <Text style={styles.meta}>Asiento {player.seatIndex + 1}</Text>
                     </View>
                     <Badge tone={player.alive ? "success" : "muted"}>
-                      {player.alive ? "Vivo" : "Muerto"}
+                      {player.alive ? gendered(player, "Vivo", "Viva") : gendered(player, "Muerto", "Muerta")}
                     </Badge>
                     <Button
                       icon={player.alive ? "skull-outline" : "heart-pulse"}
-                      label={player.alive ? "Marcar muerto" : "Marcar vivo"}
+                      label={player.alive ? gendered(player, "Marcar muerto", "Marcar muerta") : gendered(player, "Marcar vivo", "Marcar viva")}
                       onPress={() => {
                         const nextGame = togglePlayerAlive(currentGame, player.id, currentTime);
                         void commitCorrection(nextGame, currentGame, "manual-alive");
@@ -1495,7 +1653,7 @@ export function MafiApp() {
               </View>
             </Card>
 
-            <LogPanel privateLog={privateLogLines} publicLog={publicLogLines} />
+            <LogPanel privateLog={privateLogLines} publicLog={publicLogLines} players={currentGame.players} />
           </View>
         </AppScroll>
         <BottomActionBar
@@ -1573,9 +1731,25 @@ function profileToState(player: PlayerProfile) {
   return {
     id: player.id,
     name: player.name,
+    gender: player.gender,
     alive: true,
     seatIndex: 0
   };
+}
+
+function genderLabel(gender: PlayerGender): string {
+  return gender === "mujer" ? "Mujer" : "Hombre";
+}
+
+function playerNameFromId(
+  players: readonly Pick<PlayerProfile, "id" | "name">[],
+  playerId: PlayerId | undefined
+): string {
+  if (!playerId) {
+    return "sin voto";
+  }
+
+  return players.find((player) => player.id === playerId)?.name ?? playerId;
 }
 
 function roleActsAtNight(roleId: RoleId): boolean {
@@ -1605,6 +1779,10 @@ function pluralRoleName(roleId: RoleId): string {
   if (roleId === "civil") return "Civiles";
 
   return roleDefinitions[roleId].name;
+}
+
+function roleCallName(roleId: RoleId, count: number): string {
+  return count > 1 ? pluralRoleName(roleId) : roleDefinitions[roleId].name;
 }
 
 function nightActionCopy(roleId: RoleId, actorCount: number): string {
@@ -1653,6 +1831,10 @@ function currentTime(): string {
 
 function comparePlayers(a: PlayerProfile, b: PlayerProfile): number {
   return a.name.localeCompare(b.name, "es");
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
 const styles = StyleSheet.create({
@@ -1732,8 +1914,19 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     flexDirection: "row",
     gap: theme.spacing.sm,
-    minHeight: 56,
-    paddingTop: theme.spacing.sm
+    minHeight: seatDragRowHeight,
+    paddingTop: theme.spacing.xs
+  },
+  seatRow_dragging: {
+    backgroundColor: theme.colors.surfaceAlt,
+    borderRadius: theme.radius.sm,
+    paddingHorizontal: theme.spacing.xs
+  },
+  dragHandle: {
+    alignItems: "center",
+    height: theme.layout.touchTarget,
+    justifyContent: "center",
+    width: theme.layout.touchTarget
   },
   seatNumber: {
     ...theme.typography.label,
@@ -1748,6 +1941,24 @@ const styles = StyleSheet.create({
   inlineActions: {
     flexDirection: "row",
     gap: theme.spacing.xs
+  },
+  voteChangeRow: {
+    alignItems: "center",
+    backgroundColor: theme.colors.bgRaised,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+    minHeight: 52,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs
+  },
+  voteChangeRow_selected: {
+    borderColor: theme.colors.sage
+  },
+  voteChangeRow_pressed: {
+    opacity: 0.72
   },
   roleCounter: {
     alignItems: "center",

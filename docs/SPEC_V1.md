@@ -79,6 +79,7 @@ Un jugador tiene:
 
 - id local.
 - nombre.
+- género: hombre o mujer, usado para copys user-facing.
 - tipo: frecuente o invitado.
 - estado en partida: vivo/muerto.
 - posición de asiento actual si está vivo.
@@ -196,6 +197,7 @@ Aunque algunas fases sean visualmente simples, deben existir como estados intern
 La app debe guardar automáticamente:
 
 - jugadores locales;
+- género de jugadores locales;
 - configuración usada en la última partida;
 - partida en curso;
 - estado actual de fase;
@@ -300,8 +302,11 @@ Acciones:
 - seleccionar para próxima partida;
 - crear jugador;
 - editar nombre;
+- editar género;
 - eliminar jugador;
 - agregar invitado.
+
+El género se carga con un selector simple hombre/mujer. El default es hombre para acelerar carga de mesa, pero puede modificarse antes o durante la gestión local de jugadores.
 
 ### 7.2. Invitados
 
@@ -323,7 +328,7 @@ No se soporta carga antihoraria.
 
 ### 8.2. Edición antes de partida
 
-Antes de empezar, Dios puede reordenar jugadores con drag & drop o mecanismo equivalente.
+Antes de empezar, Dios reordena jugadores con drag & drop desde un handle visible a la izquierda de cada fila. Las filas deben ser compactas para ver varias personas a la vez.
 
 ### 8.3. Edición durante partida
 
@@ -453,7 +458,7 @@ En noches posteriores, la app ya conoce los roles y guía acciones nocturnas.
 
 Debe:
 
-- mostrar rol/grupo llamado;
+- mostrar rol/grupo llamado usando la cantidad de cartas inicial del rol, no la cantidad viva actual;
 - permitir seleccionar objetivo;
 - registrar acción;
 - aplicar inhibiciones, protecciones, asesinatos, investigaciones y reacciones según motor;
@@ -461,6 +466,10 @@ Debe:
 - permitir ver situación actual sin interrumpir el flujo;
 - mostrar preview de resolución;
 - pedir confirmación antes de aplicar resultados definitivos.
+
+Si todos los jugadores de un rol llamado están muertos, igual debe existir el paso teatral. La app muestra el llamado, deja todos los chips deshabilitados y Dios toca `Continuar` para no revelar información confidencial por omisión del paso.
+
+Los jugadores muertos deben seguir visibles en los selectores de objetivo, en un grupo aparte y siempre deshabilitados.
 
 ---
 
@@ -577,6 +586,8 @@ Debe mostrar:
 - iconos o badges visuales;
 - tooltip o detalle al tocar.
 
+Cada rol debe tener un ícono reconocible para vistas compactas. En modo sin ojo, esos íconos no deben revelar roles secretos salvo en logs privados o pantallas explícitamente privadas.
+
 Ejemplos de estados públicos futuros:
 
 - no puede votar;
@@ -617,6 +628,8 @@ El botón de ojo solo debe aparecer en pantallas donde alternarlo cambia el cont
 ### 14.1. Log privado
 
 Registra todo lo necesario para trazabilidad.
+
+Siempre que sea posible, los logs deben mostrar nombres de personas en lugar de nombres genéricos de rol. Ejemplo: `Fera y Pablo protegieron a Jose`, no `Médicos protegieron a Jose`. Los textos deben respetar singular/plural y género cuando corresponda.
 
 Eventos sugeridos:
 
@@ -719,13 +732,15 @@ Si hay un más votado sin ejecución inmediata:
 
 1. Pasa a defensa.
 2. Se registra que ese jugador ya se defendió este día.
-3. Dios permite cambios de voto en modo libre.
+3. Dios permite cambios de voto en modo libre, eligiendo votante y nuevo objetivo.
 4. La app recalcula.
 5. Si el mismo jugador vuelve a ser más votado, muere.
 6. Si aparece otro más votado, se defiende ese jugador.
 7. Si hay empate, vuelve discusión.
 
 El ciclo se repite indefinidamente hasta que alguien muera.
+
+La pantalla de cambios debe mostrar el objetivo anterior de cada votante para que Dios pueda ajustar votos puntuales sin recargar toda la ronda.
 
 ### 15.7. Razones de ejecución
 
