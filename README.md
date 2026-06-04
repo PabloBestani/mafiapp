@@ -313,8 +313,12 @@ Asistente offline para Dios con roles base, noche, votación y victoria.
 
 ## 13. Documentación adicional
 
-La especificación funcional y técnica de la V1 está en:
+La documentación principal de la V1 está en:
 
 ```txt
 docs/SPEC_V1.md
+docs/ROLES_V1.md
 ```
+
+- `docs/SPEC_V1.md`: especificación funcional y técnica general de la V1.
+- `docs/ROLES_V1.md`: especificación detallada de roles, estados, tipos de muerte, orden de resolución nocturna e interacciones entre cartas.
