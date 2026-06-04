@@ -13,6 +13,8 @@ export type RoleId = (typeof roleIds)[number];
 
 export type PlayerId = string;
 
+export type PlayerKind = "frequent" | "guest";
+
 export type Team = "pueblo" | "mafia";
 
 export type GameStatus =
@@ -64,6 +66,20 @@ export interface PlayerState {
   seatIndex: number;
   publicStates?: string[];
   secretStates?: string[];
+}
+
+export interface PlayerProfile {
+  id: PlayerId;
+  name: string;
+  kind: PlayerKind;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LastGameSetup {
+  activePlayerIds: PlayerId[];
+  seatingOrder: PlayerId[];
+  deck: Partial<Record<RoleId, number>>;
 }
 
 export interface GameState {
