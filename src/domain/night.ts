@@ -30,7 +30,7 @@ export interface DetectiveResult {
 }
 
 export type DeathType = "COMMON_MURDER" | "LINK" | "POISON";
-export type DeathSource = "MAFIA" | "GRANDMA" | "ROMEO_JULIETA";
+export type DeathSource = "MAFIA" | "GRANDMA" | "ROMEO_JULIETA" | "LYNCH";
 
 export interface DeathRecord {
   playerId: PlayerId;
