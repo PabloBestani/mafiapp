@@ -33,6 +33,7 @@ import {
   TextBlock
 } from "./components";
 import {
+  addPrivateNote,
   applyConfirmedLynch,
   applyDefense,
   applyLynch,
@@ -44,15 +45,19 @@ import {
   canStartGame,
   castCurrentVote,
   completeDraftWithCivilians,
+  correctPlayerRole,
+  createDraftFromGame,
   createEmptyDraft,
   createGameFromDraft,
   createVotingSession,
   getVotingOutcome as getSessionOutcome,
   inferCivilianRoles,
+  movePlayerSeat,
   moveSeat,
   rerollVotingSession,
   resetVoteChangeCycle,
   setRoleCount,
+  togglePlayerAlive,
   setupRoleOrder,
   toggleSelectedPlayer,
   type NewGameDraft,
@@ -60,7 +65,7 @@ import {
 } from "./game/flow";
 import { theme } from "./theme/tokens";
 
-type ScreenName = "home" | "players" | "setup" | "game" | "logs";
+type ScreenName = "home" | "players" | "setup" | "game" | "logs" | "corrections";
 type SetupStep = "players" | "seating" | "cards" | "deal";
 type GameTab = "focus" | "roster" | "logs";
 
@@ -105,6 +110,8 @@ export function MafiApp() {
   const [votingSession, setVotingSession] = useState<VotingSession | null>(null);
   const [lynchTargetId, setLynchTargetId] = useState<PlayerId | null>(null);
   const [dayPoisonTargetId, setDayPoisonTargetId] = useState<PlayerId | null>(null);
+  const [correctionPlayerId, setCorrectionPlayerId] = useState<PlayerId | null>(null);
+  const [correctionNote, setCorrectionNote] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -245,6 +252,15 @@ export function MafiApp() {
     }
   }
 
+  async function commitCorrection(
+    nextGame: GameState,
+    previousGame: GameState,
+    reason: string
+  ) {
+    resetGameFlowUi();
+    await commitGame(nextGame, previousGame, reason, true);
+  }
+
   async function undoGame() {
     if (!game || !storage) {
       return;
@@ -282,6 +298,8 @@ export function MafiApp() {
     setVotingSession(null);
     setLynchTargetId(null);
     setDayPoisonTargetId(null);
+    setCorrectionPlayerId(null);
+    setCorrectionNote("");
   }
 
   function renderCurrentScreen() {
@@ -319,6 +337,10 @@ export function MafiApp() {
           </AppScroll>
         </Screen>
       );
+    }
+
+    if (screen === "corrections" && game) {
+      return renderCorrections(game);
     }
 
     return renderHome();
@@ -711,18 +733,22 @@ export function MafiApp() {
           icon="reload"
           label="Nueva con mismos jugadores"
           onPress={() => {
-            setDraft({
-              selectedPlayerIds: currentGame.players.map((player) => player.id),
-              seatingOrder: currentGame.players
-                .slice()
-                .sort((a, b) => a.seatIndex - b.seatIndex)
-                .map((player) => player.id),
-              deck: currentGame.deck
-            });
+            setDraft(createDraftFromGame(currentGame));
+            resetGameFlowUi();
             setSetupStep("players");
             setScreen("setup");
           }}
           variant="primary"
+        />
+        <Button
+          icon="plus"
+          label="Nueva desde cero"
+          onPress={() => {
+            setDraft(createEmptyDraft());
+            resetGameFlowUi();
+            setSetupStep("players");
+            setScreen("setup");
+          }}
         />
       </Card>
     );
@@ -1170,9 +1196,196 @@ export function MafiApp() {
     );
   }
 
+  function renderCorrections(currentGame: GameState) {
+    const orderedPlayers = currentGame.players
+      .slice()
+      .sort((a, b) => a.seatIndex - b.seatIndex);
+    const selectedPlayer = orderedPlayers.find((player) => player.id === correctionPlayerId);
+    const trimmedNote = correctionNote.trim();
+
+    return (
+      <Screen>
+        <PhaseHeader
+          canUndo={Boolean(storage)}
+          meta="Privado"
+          onHome={() => setScreen("game")}
+          onLogs={() => setScreen("logs")}
+          onToggleSecrets={() => setShowSecrets((current) => !current)}
+          onUndo={() => void undoGame()}
+          showSecrets={showSecrets}
+          title="Correcciones"
+        />
+        <AppScroll>
+          <View style={styles.stack}>
+            <Card variant="muted">
+              <View style={styles.rowBetween}>
+                <View style={styles.flex}>
+                  <Text style={styles.sectionTitle}>Herramientas privadas</Text>
+                  <Text style={styles.meta}>Los cambios quedan trazados en el log privado.</Text>
+                </View>
+                <Badge tone="warning">Dios</Badge>
+              </View>
+            </Card>
+
+            <Card>
+              <Text style={styles.sectionTitle}>Nota privada</Text>
+              <TextInput
+                accessibilityLabel="Nota privada de Dios"
+                multiline
+                onChangeText={setCorrectionNote}
+                placeholder="Nota"
+                placeholderTextColor={theme.colors.textDim}
+                style={[styles.input, styles.noteInput]}
+                textAlignVertical="top"
+                value={correctionNote}
+              />
+              <Button
+                disabled={!trimmedNote}
+                icon="note-edit-outline"
+                label="Guardar nota"
+                onPress={() => {
+                  if (!trimmedNote) {
+                    return;
+                  }
+
+                  const nextGame = addPrivateNote(currentGame, trimmedNote, currentTime);
+                  void commitCorrection(nextGame, currentGame, "manual-note");
+                }}
+                variant="primary"
+              />
+            </Card>
+
+            <Card>
+              <Text style={styles.sectionTitle}>Estado vivo/muerto</Text>
+              <View style={styles.stack}>
+                {orderedPlayers.map((player) => (
+                  <View key={player.id} style={styles.correctionRow}>
+                    <View style={styles.flex}>
+                      <Text style={styles.playerName}>{player.name}</Text>
+                      <Text style={styles.meta}>Asiento {player.seatIndex + 1}</Text>
+                    </View>
+                    <Badge tone={player.alive ? "success" : "muted"}>
+                      {player.alive ? "Vivo" : "Muerto"}
+                    </Badge>
+                    <Button
+                      icon={player.alive ? "skull-outline" : "heart-pulse"}
+                      label={player.alive ? "Marcar muerto" : "Marcar vivo"}
+                      onPress={() => {
+                        const nextGame = togglePlayerAlive(currentGame, player.id, currentTime);
+                        void commitCorrection(nextGame, currentGame, "manual-alive");
+                      }}
+                      variant={player.alive ? "danger" : "secondary"}
+                    />
+                  </View>
+                ))}
+              </View>
+            </Card>
+
+            <Card>
+              <Text style={styles.sectionTitle}>Corregir rol</Text>
+              <View style={styles.chipWrap}>
+                {orderedPlayers.map((player) => (
+                  <PlayerChip
+                    key={player.id}
+                    onPress={() => setCorrectionPlayerId(player.id)}
+                    player={player}
+                    selected={correctionPlayerId === player.id}
+                    showSecrets
+                  />
+                ))}
+              </View>
+
+              {selectedPlayer ? (
+                <>
+                  <View style={styles.roleSummary}>
+                    <Text style={styles.meta}>Rol actual</Text>
+                    <Badge tone={selectedPlayer.roleId ? "info" : "warning"}>
+                      {selectedPlayer.roleId ? roleDefinitions[selectedPlayer.roleId].name : "Sin rol"}
+                    </Badge>
+                  </View>
+                  <View style={styles.chipWrap}>
+                    {setupRoleOrder.map((roleId) => (
+                      <Button
+                        disabled={selectedPlayer.roleId === roleId}
+                        key={roleId}
+                        label={roleDefinitions[roleId].name}
+                        onPress={() => {
+                          const nextGame = correctPlayerRole(
+                            currentGame,
+                            selectedPlayer.id,
+                            roleId,
+                            currentTime
+                          );
+                          void commitCorrection(nextGame, currentGame, "manual-role");
+                        }}
+                      />
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.meta}>Elegí un jugador para cambiar su rol.</Text>
+              )}
+            </Card>
+
+            <Card>
+              <Text style={styles.sectionTitle}>Orden de asiento</Text>
+              <View style={styles.stack}>
+                {orderedPlayers.map((player, index) => (
+                  <View key={player.id} style={styles.correctionRow}>
+                    <Text style={styles.seatNumber}>{index + 1}</Text>
+                    <Text style={styles.playerName}>{player.name}</Text>
+                    <View style={styles.inlineActions}>
+                      <Button
+                        disabled={index === 0}
+                        icon="chevron-up"
+                        label="Subir"
+                        onPress={() => {
+                          const nextGame = movePlayerSeat(currentGame, player.id, -1, currentTime);
+                          void commitCorrection(nextGame, currentGame, "manual-seat-up");
+                        }}
+                      />
+                      <Button
+                        disabled={index === orderedPlayers.length - 1}
+                        icon="chevron-down"
+                        label="Bajar"
+                        onPress={() => {
+                          const nextGame = movePlayerSeat(currentGame, player.id, 1, currentTime);
+                          void commitCorrection(nextGame, currentGame, "manual-seat-down");
+                        }}
+                      />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </Card>
+
+            <LogPanel privateLog={privateLogLines} publicLog={publicLogLines} />
+          </View>
+        </AppScroll>
+        <BottomActionBar
+          primary={{ icon: "arrow-left", label: "Volver", onPress: () => setScreen("game") }}
+          secondary={{ icon: "cancel", label: "Cancelar partida", onPress: () => confirmCancel() }}
+        />
+      </Screen>
+    );
+  }
+
   function renderRoster(currentGame: GameState) {
     return (
       <View style={styles.stack}>
+        <Card variant="muted">
+          <View style={styles.rowBetween}>
+            <View style={styles.flex}>
+              <Text style={styles.sectionTitle}>Correcciones de Dios</Text>
+              <Text style={styles.meta}>Ajustes privados para salvar errores de carga.</Text>
+            </View>
+            <Button
+              icon="wrench-outline"
+              label="Abrir"
+              onPress={() => setScreen("corrections")}
+            />
+          </View>
+        </Card>
         {currentGame.players
           .slice()
           .sort((a, b) => a.seatIndex - b.seatIndex)
@@ -1343,9 +1556,28 @@ const styles = StyleSheet.create({
     minHeight: theme.layout.touchTarget,
     paddingHorizontal: theme.spacing.md
   },
+  noteInput: {
+    minHeight: 96,
+    paddingTop: theme.spacing.sm
+  },
   chipWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: theme.spacing.sm
+  },
+  correctionRow: {
+    alignItems: "center",
+    borderTopColor: theme.colors.border,
+    borderTopWidth: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing.sm,
+    minHeight: 56,
+    paddingTop: theme.spacing.sm
+  },
+  roleSummary: {
+    alignItems: "center",
+    flexDirection: "row",
     gap: theme.spacing.sm
   },
   seatRow: {

@@ -319,7 +319,9 @@ La documentación principal de la V1 está en:
 ```txt
 docs/SPEC_V1.md
 docs/ROLES_V1.md
+docs/APK_BUILD.md
 ```
 
 - `docs/SPEC_V1.md`: especificación funcional y técnica general de la V1.
 - `docs/ROLES_V1.md`: especificación detallada de roles, estados, tipos de muerte, orden de resolución nocturna e interacciones entre cartas.
+- `docs/APK_BUILD.md`: pasos para generar un APK Android local sin EAS.

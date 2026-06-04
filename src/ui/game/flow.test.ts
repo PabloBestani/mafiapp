@@ -5,19 +5,24 @@ import {
   applyConfirmedLynch,
   applyDefense,
   applyLynch,
+  addPrivateNote,
   assignRole,
   buildFirstNightSteps,
   canInferCivilians,
   canStartGame,
+  correctPlayerRole,
   castCurrentVote,
   completeDraftWithCivilians,
+  createDraftFromGame,
   createEmptyDraft,
   createGameFromDraft,
   createVotingSession,
   inferCivilianRoles,
+  movePlayerSeat,
   moveSeat,
   rerollVotingSession,
   setRoleCount,
+  togglePlayerAlive,
   toggleSelectedPlayer
 } from "./flow";
 
@@ -117,6 +122,50 @@ describe("lynch flow", () => {
       { playerId: "p4", type: "POISON", source: "ROMEO_JULIETA" }
     ]);
     expect(confirmed.status).toBe("MAFIA" === confirmed.result ? "GAME_OVER" : confirmed.status);
+  });
+});
+
+describe("god corrections", () => {
+  it("creates a reusable draft from the current game", () => {
+    const game = createGameWithRoles([
+      ["p1", "mafioso"],
+      ["p2", "civil"]
+    ]);
+
+    expect(createDraftFromGame(game)).toEqual({
+      selectedPlayerIds: ["p1", "p2"],
+      seatingOrder: ["p1", "p2"],
+      deck: { mafioso: 1, civil: 1 }
+    });
+  });
+
+  it("changes alive state, role, seating order and notes through manual corrections", () => {
+    const game = createGameWithRoles([
+      ["p1", "mafioso"],
+      ["p2", "civil"],
+      ["p3", "medico"]
+    ]);
+    const dead = togglePlayerAlive(game, "p2", now);
+    const role = correctPlayerRole(dead, "p2", "detective", now);
+    const moved = movePlayerSeat(role, "p3", -1, now);
+    const noted = addPrivateNote(moved, "Revisar voto compartido", now);
+
+    expect(noted.players.find((player) => player.id === "p2")).toMatchObject({
+      alive: false,
+      roleId: "detective"
+    });
+    expect(
+      noted.players
+        .slice()
+        .sort((a, b) => a.seatIndex - b.seatIndex)
+        .map((player) => player.id)
+    ).toEqual(["p1", "p3", "p2"]);
+    expect(noted.privateLog.map((entry) => entry.event)).toEqual([
+      "MANUAL_CORRECTION",
+      "MANUAL_CORRECTION",
+      "SEATING_ORDER_CHANGED",
+      "MANUAL_CORRECTION"
+    ]);
   });
 });
 

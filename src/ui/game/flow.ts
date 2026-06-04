@@ -75,6 +75,18 @@ export function createEmptyDraft(): NewGameDraft {
   };
 }
 
+export function createDraftFromGame(game: GameState): NewGameDraft {
+  const orderedPlayers = game.players
+    .slice()
+    .sort((a, b) => a.seatIndex - b.seatIndex);
+
+  return {
+    selectedPlayerIds: orderedPlayers.map((player) => player.id),
+    seatingOrder: orderedPlayers.map((player) => player.id),
+    deck: { ...game.deck }
+  };
+}
+
 export function toggleSelectedPlayer(
   draft: NewGameDraft,
   playerId: PlayerId
@@ -113,6 +125,33 @@ export function moveSeat(
   next[targetIndex] = currentValue;
 
   return next;
+}
+
+export function movePlayerSeat(
+  game: GameState,
+  playerId: PlayerId,
+  direction: -1 | 1,
+  now: () => string
+): GameState {
+  const orderedIds = game.players
+    .slice()
+    .sort((a, b) => a.seatIndex - b.seatIndex)
+    .map((player) => player.id);
+  const movedIds = moveSeat(orderedIds, playerId, direction);
+  const movedNames = movedIds
+    .map((id) => game.players.find((player) => player.id === id)?.name ?? id)
+    .join(", ");
+  const nextPlayers = game.players.map((player) => ({
+    ...player,
+    seatIndex: movedIds.indexOf(player.id)
+  }));
+
+  return appendPrivateEvent(
+    { ...game, players: nextPlayers },
+    "SEATING_ORDER_CHANGED",
+    `Dios corrigió el orden de asiento: ${movedNames}.`,
+    now
+  );
 }
 
 export function setRoleCount(
@@ -226,6 +265,57 @@ export function assignRole(
     { ...game, players: nextPlayers },
     "ROLE_ASSIGNED",
     `${roleDefinitions[roleId].name}: ${playerIds.length} asignado(s).`,
+    now
+  );
+}
+
+export function correctPlayerRole(
+  game: GameState,
+  playerId: PlayerId,
+  roleId: RoleId,
+  now: () => string
+): GameState {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  const nextPlayers = game.players.map((candidate) =>
+    candidate.id === playerId ? { ...candidate, roleId } : candidate
+  );
+
+  return appendPrivateEvent(
+    { ...game, players: nextPlayers },
+    "MANUAL_CORRECTION",
+    `Dios corrigió el rol de ${player?.name ?? playerId} a ${roleDefinitions[roleId].name}.`,
+    now
+  );
+}
+
+export function togglePlayerAlive(
+  game: GameState,
+  playerId: PlayerId,
+  now: () => string
+): GameState {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  const nextPlayers = game.players.map((candidate) =>
+    candidate.id === playerId ? { ...candidate, alive: !candidate.alive } : candidate
+  );
+  const nextAlive = nextPlayers.find((candidate) => candidate.id === playerId)?.alive;
+
+  return appendPrivateEvent(
+    { ...game, players: nextPlayers },
+    "MANUAL_CORRECTION",
+    `Dios corrigió el estado de ${player?.name ?? playerId}: ${nextAlive ? "vivo" : "muerto"}.`,
+    now
+  );
+}
+
+export function addPrivateNote(
+  game: GameState,
+  note: string,
+  now: () => string
+): GameState {
+  return appendPrivateEvent(
+    game,
+    "MANUAL_CORRECTION",
+    `Nota de Dios: ${note.trim()}`,
     now
   );
 }

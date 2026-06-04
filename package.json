@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "apk:local": "expo prebuild --platform android && cd android && gradlew.bat assembleRelease"
+    "apk:release": "expo prebuild --platform android && cd android && gradlew.bat assembleRelease",
+    "apk:debug": "expo prebuild --platform android && cd android && gradlew.bat assembleDebug",
+    "apk:local": "npm run apk:release"
   },
   "dependencies": {
     "@expo/vector-icons": "15.1.1",
