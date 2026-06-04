@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "MafiApp",
+    "slug": "mafiapp",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.mafiapp.mobile"
+    }
+  }
+}

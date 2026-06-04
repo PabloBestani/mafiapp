@@ -120,12 +120,13 @@ Ejemplo clave:
 
 - La Prostituta pertenece al equipo Mafia.
 - La Prostituta no cuenta como **Mafioso estricto**.
+- La Prostituta sí cuenta como **no mafioso vivo** para la paridad de victoria de Mafia.
 - Para que el Pueblo gane, deben morir todos los Mafiosos estrictos.
 - Si todos los Mafiosos estrictos mueren, el Pueblo gana aunque la Prostituta siga viva.
 
 Condiciones base:
 
-- **Mafia gana** si los Mafiosos estrictos vivos alcanzan paridad o superioridad respecto de los no mafiosos vivos.
+- **Mafia gana** si los Mafiosos estrictos vivos alcanzan paridad o superioridad respecto de los no mafiosos vivos. En este conteo, "no mafiosos vivos" incluye a todos los jugadores vivos que no sean Mafiosos estrictos, incluida la Prostituta.
 - **Pueblo gana** si no queda ningún Mafioso estricto vivo.
 - **Empate** es un resultado válido, aunque poco frecuente, si una resolución elimina simultáneamente las condiciones de victoria normales o deja a todos los bandos sin ganador claro.
 

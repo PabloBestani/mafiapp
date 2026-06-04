@@ -111,15 +111,17 @@ Ejemplo:
 Prostituta:
   equipo = Mafia
   mafiosoEstricto = false
+  cuentaComoNoMafiosoVivo = true
 ```
 
 ```txt
 Mafioso:
   equipo = Mafia
   mafiosoEstricto = true
+  cuentaComoNoMafiosoVivo = false
 ```
 
-La victoria mafia depende de Mafiosos estrictos vivos, no de todos los miembros del equipo Mafia.
+La victoria mafia depende de Mafiosos estrictos vivos contra no mafiosos vivos. En este conteo, todo jugador vivo que no sea Mafioso estricto cuenta como no mafioso vivo, incluida la Prostituta aunque pertenezca al equipo Mafia.
 
 ---
 
@@ -134,10 +136,26 @@ Los únicos roles implementados en V1 son:
 | Médico | Pueblo | No | Protección nocturna grupal |
 | Detective | Pueblo | No | Investigación nocturna grupal |
 | Abuela con Escopeta | Pueblo | No | Pasiva nocturna |
-| Romeo y Julieta | Pueblo | No | Vínculo de voto y muerte |
+| Romeo | Pueblo | No | Vínculo de voto, muerte y envenenamiento |
+| Julieta | Pueblo | No | Vínculo de voto, muerte y envenenamiento |
 | Prostituta | Mafia | No | Inhibición nocturna |
 
-La lógica fina de interacciones se documentará en una futura especificación de roles. Aun así, el diseño del motor debe prever interacciones complejas.
+Límites máximos de cartas V1:
+
+| Rol | Máximo |
+|---|---:|
+| Civil | 7 |
+| Mafioso | 5 |
+| Médico | 3 |
+| Detective | 3 |
+| Abuela con Escopeta | 1 |
+| Romeo | 1 |
+| Julieta | 1 |
+| Prostituta | 1 |
+
+Romeo y Julieta son dos cartas distintas. En V1 hacen exactamente lo mismo en términos de motor: comparten voto, muerte por vínculo y envenenamiento.
+
+La lógica fina de interacciones está definida en `docs/ROLES_V1.md`. El diseño del motor debe prever interacciones complejas futuras, pero `docs/ROLES_V1.md` es la fuente de verdad para roles V1.
 
 ---
 
@@ -211,7 +229,7 @@ Dios puede terminar una partida antes de que haya ganador por:
 - interrupción externa;
 - decisión del grupo.
 
-La partida pasa a estado terminado sin ganador o con resultado manual, según se defina en UI.
+La partida pasa a estado terminado con resultado `CANCELADA`. No se registra como victoria manual, derrota manual ni empate manual.
 
 No se requiere historial avanzado de partidas terminadas en V1.
 
@@ -518,14 +536,14 @@ Los Mafiosos actúan como grupo.
 
 ### 12.5. Romeo y Julieta
 
-En V1 se implementa su vínculo de voto y muerte.
+En V1 se implementa su vínculo de voto, muerte y envenenamiento. Romeo y Julieta son dos cartas distintas, con las mismas reglas de vínculo.
 
 - Comparten voto forzosamente.
 - Si uno vota primero, el otro queda obligado al mismo voto.
 - Si uno cambia voto, el otro cambia automáticamente.
 - Si uno muere, el otro muere inmediatamente.
 
-La lógica fina de “llevarse a alguien a la tumba” se especificará más adelante.
+Antes de morir, el segundo amante puede envenenar a otro jugador vivo según las reglas detalladas en `docs/ROLES_V1.md`.
 
 ### 12.6. Abuela con Escopeta
 
@@ -734,6 +752,8 @@ Mafia gana si:
 mafiososEstricosVivos >= noMafiososVivos
 ```
 
+`noMafiososVivos` incluye a todos los jugadores vivos que no sean Mafiosos estrictos. La Prostituta cuenta como `noMafiososVivos` aunque sea del equipo Mafia.
+
 ### 16.3. Pueblo
 
 Pueblo gana si:
@@ -751,7 +771,7 @@ Puede ocurrir en resoluciones raras donde las muertes encadenadas dejan sin gana
 El motor debe permitir:
 
 ```ts
-type GameResult = "PUEBLO" | "MAFIA" | "EMPATE" | "SIN_RESULTADO";
+type GameResult = "PUEBLO" | "MAFIA" | "EMPATE" | "SIN_RESULTADO" | "CANCELADA";
 ```
 
 ### 16.5. Preparación para neutrales

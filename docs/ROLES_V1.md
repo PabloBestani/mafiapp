@@ -173,6 +173,7 @@ Reglas:
 Condición de victoria:
 
 - La Mafia gana si los Mafiosos estrictos vivos alcanzan paridad o superioridad respecto de los no mafiosos vivos.
+- En este conteo, la Prostituta cuenta como no mafioso vivo aunque pertenezca al equipo Mafia.
 - Si todos los Mafiosos estrictos mueren, gana el Pueblo aunque la Prostituta siga viva.
 
 ### 4.3. Médico
@@ -192,7 +193,7 @@ Reglas:
 - La protección salva al objetivo de todos los asesinatos comunes de esa noche.
 - La protección no salva de envenenamiento ni muerte por vínculo.
 - Si los Médicos protegen a la Abuela no inhibida, la protección sobre la Abuela no se aplica y un Médico muere por la escopeta.
-- El disparo de la Abuela contra el Médico es asesinato común y puede ser salvado si otro Médico protege al Médico que recibe el disparo.
+- Como los Médicos actúan como grupo y eligen un único objetivo por noche, ese mismo grupo no puede salvar al Médico que recibe el disparo por haber intentado proteger a la Abuela.
 
 ### 4.4. Detective
 
@@ -294,6 +295,7 @@ Reglas:
 Condición de victoria:
 
 - Pertenece a la Mafia, pero no cuenta como Mafioso estricto.
+- Sí cuenta como no mafioso vivo para la paridad de victoria de Mafia.
 - Si todos los Mafiosos estrictos mueren, la Prostituta no impide la victoria del Pueblo.
 
 ---
