@@ -74,3 +74,21 @@ Implementado:
 - Revertir una resolución completa todavía se hace con Deshacer; no hay editor específico de resolución histórica.
 - El build APK local usa `npm run apk:local`, requiere JDK + Android SDK instalados en la máquina y firma con debug keystore generada por Expo prebuild.
 - `npm audit` reporta un advisory moderado en `uuid` vía `expo`/`xcode`; no se aplicó `npm audit fix --force` porque propone bajar Expo a 46.
+
+## Ajustes posteriores
+
+Implementado:
+
+- Icono de app, adaptive icon, splash screen y wordmark derivados del lomo de cartas.
+- Safe area superior/inferior para evitar superposición con barras del celular.
+- Header operativo con wordmark compacto.
+- Primera noche con identificación y acción inmediata para roles activos.
+- Inferencia automática de Civiles al cerrar la primera noche, sin botón intermedio.
+- Selecciones únicas por chip, sin botón de confirmación.
+- Targets vivos y muertos visibles en chips; muertos e inelegibles quedan deshabilitados con razón compacta al tocar.
+- Restricciones UI y dominio:
+  - Prostituta no puede inhibirse a sí misma;
+  - único Mafioso vivo no puede automatarse;
+  - Detective no puede investigarse a sí mismo;
+  - no existe autovoto diurno directo ni forzado por Romeo/Julieta.
+- Botón de ojo oculto en pantallas donde no cambia el contenido visible.

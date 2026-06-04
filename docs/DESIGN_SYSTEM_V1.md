@@ -168,6 +168,8 @@ Estados:
 
 Debe mostrar nombre siempre. Rol solo con ojo activo o dentro de Correcciones.
 
+Cuando un chip está deshabilitado por regla de juego, debe seguir visible y responder al toque con una razón compacta de 1 a 5 palabras. Ejemplos: `Muerto`, `Sin autovoto`, `No puede automatarse`.
+
 ### PlayerCard
 
 Uso: listas de jugadores, situación actual, vivos/muertos.
@@ -189,7 +191,7 @@ Muestra:
 - fase;
 - día/noche;
 - progreso del flujo;
-- ojo;
+- ojo, solo cuando alterna datos visibles;
 - undo;
 - acceso a log.
 
@@ -273,6 +275,12 @@ Usos permitidos:
 - empty state de partida;
 - acerca de / configuración;
 - miniatura para preset visual de cartas físicas.
+
+Assets derivados:
+
+- `assets/app/icon.png`: icono cuadrado sin texto ni marco, basado en los tres hombres del lomo.
+- `assets/app/splash.png`: lomo completo para splash.
+- `assets/brand/mafiapp-wordmark.png`: logotipo transparente para header o marca compacta.
 
 Reglas:
 

@@ -108,6 +108,23 @@ describe("night resolution", () => {
     });
   });
 
+  it("rejects detective self-investigation", () => {
+    const resolution = resolveNight({
+      players: [
+        player("detective", "detective", 0),
+        player("civil", "civil", 1)
+      ],
+      actions: {
+        detectiveInvestigate: { targetId: "detective" }
+      }
+    });
+
+    expect(resolution.detectiveResult).toBeNull();
+    expect(resolution.privateEvents).toContain(
+      "El Detective no puede investigarse a sí mismo."
+    );
+  });
+
   it("resolves Romeo and Julieta link death plus poison", () => {
     const resolution = resolveNight({
       players: [

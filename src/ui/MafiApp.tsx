@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -24,6 +24,7 @@ import {
   BrandMark,
   Button,
   Card,
+  HintToast,
   LogPanel,
   PhaseHeader,
   Screen,
@@ -41,7 +42,6 @@ import {
   assignRole,
   buildFirstNightSteps,
   buildNightActionSteps,
-  canInferCivilians,
   canStartGame,
   castCurrentVote,
   completeDraftWithCivilians,
@@ -63,11 +63,20 @@ import {
   type NewGameDraft,
   type VotingSession
 } from "./game/flow";
+import {
+  getNightActionTarget,
+  loverPoisonTargetGroups,
+  nightActionTargetGroups,
+  setNightActionTarget,
+  type TargetGroups,
+  voteTargetGroups
+} from "./game/targeting";
 import { theme } from "./theme/tokens";
 
 type ScreenName = "home" | "players" | "setup" | "game" | "logs" | "corrections";
 type SetupStep = "players" | "seating" | "cards" | "deal";
 type GameTab = "focus" | "roster" | "logs";
+type FirstNightMode = "identify" | "action";
 
 interface StorageServices {
   players: SQLitePlayerRepository;
@@ -103,6 +112,7 @@ export function MafiApp() {
   const [showSecrets, setShowSecrets] = useState(false);
   const [gameTab, setGameTab] = useState<GameTab>("focus");
   const [firstNightIndex, setFirstNightIndex] = useState(0);
+  const [firstNightMode, setFirstNightMode] = useState<FirstNightMode>("identify");
   const [nightActionIndex, setNightActionIndex] = useState(0);
   const [nightActions, setNightActions] = useState<NightActions>({});
   const [nightPreview, setNightPreview] = useState<NightResolution | null>(null);
@@ -112,6 +122,8 @@ export function MafiApp() {
   const [dayPoisonTargetId, setDayPoisonTargetId] = useState<PlayerId | null>(null);
   const [correctionPlayerId, setCorrectionPlayerId] = useState<PlayerId | null>(null);
   const [correctionNote, setCorrectionNote] = useState("");
+  const [targetHint, setTargetHint] = useState<string | null>(null);
+  const targetHintTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -158,6 +170,14 @@ export function MafiApp() {
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (targetHintTimeout.current) {
+        clearTimeout(targetHintTimeout.current);
+      }
     };
   }, []);
 
@@ -290,6 +310,7 @@ export function MafiApp() {
 
   function resetGameFlowUi() {
     setFirstNightIndex(0);
+    setFirstNightMode("identify");
     setRoleSelections({});
     setNightActionIndex(0);
     setNightActions({});
@@ -300,6 +321,19 @@ export function MafiApp() {
     setDayPoisonTargetId(null);
     setCorrectionPlayerId(null);
     setCorrectionNote("");
+    setTargetHint(null);
+  }
+
+  function showTargetDisabledReason(reason: string) {
+    setTargetHint(reason);
+
+    if (targetHintTimeout.current) {
+      clearTimeout(targetHintTimeout.current);
+    }
+
+    targetHintTimeout.current = setTimeout(() => {
+      setTargetHint(null);
+    }, 1600);
   }
 
   function renderCurrentScreen() {
@@ -329,6 +363,7 @@ export function MafiApp() {
             onLogs={() => setScreen("game")}
             onToggleSecrets={() => setShowSecrets((current) => !current)}
             onUndo={() => undefined}
+            showSecretToggle={false}
             showSecrets={showSecrets}
             title="Logs"
           />
@@ -353,8 +388,8 @@ export function MafiApp() {
         <AppScroll>
           <View style={styles.homeHeader}>
             <BrandMark />
-            <TextBlock eyebrow="MafiApp V1" title="Dios decide. La app recuerda.">
-              Asistente offline para partidas presenciales con cartas físicas.
+            <TextBlock eyebrow="MafiApp V1" title="MafiApp">
+              El asistente que necesitabas para tus partidas de Mafia.
             </TextBlock>
           </View>
 
@@ -632,7 +667,7 @@ export function MafiApp() {
       <Card>
         <Text style={styles.sectionTitle}>Reparto físico</Text>
         <Text style={styles.body}>
-          Repartí las cartas al azar. La app todavía no sabe quién es quién.
+          Cuando todos tengan carta, empezá la primera noche.
         </Text>
         <Text style={styles.meta}>
           Al crear partida, la primera noche va a identificar roles en orden seguro.
@@ -668,6 +703,7 @@ export function MafiApp() {
         <BottomActionBar
           secondary={{ icon: "cancel", label: "Cancelar partida", onPress: () => confirmCancel() }}
         />
+        <HintToast message={targetHint} />
       </Screen>
     );
   }
@@ -754,6 +790,77 @@ export function MafiApp() {
     );
   }
 
+  async function closeFirstNight(
+    currentGame: GameState,
+    previousGame: GameState,
+    actions: NightActions
+  ) {
+    const withCivilians = inferCivilianRoles(currentGame, currentTime);
+    const resolution = resolveNight({ players: withCivilians.players, actions });
+    const nextGame: GameState = {
+      ...withCivilians,
+      status: "NIGHT_RESOLUTION_PREVIEW"
+    };
+
+    setFirstNightIndex(0);
+    setFirstNightMode("identify");
+    setRoleSelections({});
+    setNightPreview(resolution);
+    setPendingNightPoisonTarget(null);
+    await commitGame(nextGame, previousGame, "first-night-result", true);
+  }
+
+  async function confirmFirstNightRole(
+    currentGame: GameState,
+    step: ReturnType<typeof buildFirstNightSteps>[number],
+    selectedIds: PlayerId[],
+    totalSteps: number
+  ) {
+    const nextGame = assignRole(currentGame, step.roleId, selectedIds, currentTime);
+
+    setRoleSelections((current) => {
+      const { [step.roleId]: _removed, ...rest } = current;
+      return rest;
+    });
+
+    if (roleActsAtNight(step.roleId)) {
+      setFirstNightMode("action");
+      await commitGame(nextGame, currentGame, "assign-role");
+      return;
+    }
+
+    const nextIndex = firstNightIndex + 1;
+
+    if (nextIndex >= totalSteps) {
+      await closeFirstNight(nextGame, currentGame, nightActions);
+      return;
+    }
+
+    setFirstNightIndex(nextIndex);
+    setFirstNightMode("identify");
+    await commitGame(nextGame, currentGame, "assign-role");
+  }
+
+  async function chooseFirstNightActionTarget(
+    currentGame: GameState,
+    roleId: RoleId,
+    targetId: PlayerId,
+    totalSteps: number
+  ) {
+    const nextActions = setNightActionTarget(nightActions, roleId, targetId);
+    const nextIndex = firstNightIndex + 1;
+
+    setNightActions(nextActions);
+    setFirstNightMode("identify");
+
+    if (nextIndex >= totalSteps) {
+      await closeFirstNight(currentGame, currentGame, nextActions);
+      return;
+    }
+
+    setFirstNightIndex(nextIndex);
+  }
+
   function renderFirstNight(currentGame: GameState) {
     const steps = buildFirstNightSteps(currentGame.deck, currentGame.players);
     const step = steps[firstNightIndex];
@@ -761,21 +868,10 @@ export function MafiApp() {
     if (!step) {
       return (
         <Card>
-          <Text style={styles.sectionTitle}>Inferir civiles</Text>
+          <Text style={styles.sectionTitle}>Cerrando primera noche</Text>
           <Text style={styles.body}>
-            Todo jugador sin rol asignado pasa a Civil.
+            Se prepara el resultado del amanecer.
           </Text>
-          <Button
-            disabled={!canInferCivilians(currentGame)}
-            icon="account-check"
-            label="Inferir y actuar noche"
-            onPress={() => {
-              const nextGame = inferCivilianRoles(currentGame, currentTime);
-              setFirstNightIndex(0);
-              void commitGame(nextGame, currentGame, "infer-civilians", true);
-            }}
-            variant="primary"
-          />
         </Card>
       );
     }
@@ -785,11 +881,32 @@ export function MafiApp() {
       .filter((player) => player.roleId === step.roleId)
       .map((player) => player.id);
     const selectedIds = roleSelections[step.roleId] ?? assignedIds;
+    const isSingleSelection = step.requiredCount === 1;
+
+    if (firstNightMode === "action") {
+      const actorIds = currentGame.players
+        .filter((player) => player.roleId === step.roleId)
+        .map((player) => player.id);
+      const targetGroups = nightActionTargetGroups(currentGame.players, step.roleId, actorIds);
+      const targetId = getNightActionTarget(nightActions, step.roleId);
+
+      return (
+        <Card>
+          <Text style={styles.sectionTitle}>{role.name}</Text>
+          <Text style={styles.body}>{nightActionCopy(step.roleId, step.requiredCount)}</Text>
+          {renderTargetGroups(targetGroups, {
+            selectedId: targetId,
+            onSelect: (playerId) =>
+              void chooseFirstNightActionTarget(currentGame, step.roleId, playerId, steps.length)
+          })}
+        </Card>
+      );
+    }
 
     return (
       <Card>
-        <Text style={styles.sectionTitle}>{role.name}</Text>
-        <Text style={styles.meta}>Seleccioná {step.requiredCount}</Text>
+        <Text style={styles.sectionTitle}>{identifyRoleCopy(step.roleId, step.requiredCount)}</Text>
+        <Text style={styles.meta}>{isSingleSelection ? "Un toque confirma." : `Seleccioná ${step.requiredCount}.`}</Text>
         <View style={styles.chipWrap}>
           {currentGame.players.map((player) => {
             const assignedOtherRole = Boolean(player.roleId && player.roleId !== step.roleId);
@@ -799,7 +916,14 @@ export function MafiApp() {
               <PlayerChip
                 key={player.id}
                 disabled={assignedOtherRole}
+                disabledReason={assignedOtherRole ? "Ya tiene rol" : null}
+                onDisabledPress={showTargetDisabledReason}
                 onPress={() => {
+                  if (isSingleSelection) {
+                    void confirmFirstNightRole(currentGame, step, [player.id], steps.length);
+                    return;
+                  }
+
                   const nextSelected = selected
                     ? selectedIds.filter((id) => id !== player.id)
                     : selectedIds.length < step.requiredCount
@@ -817,22 +941,65 @@ export function MafiApp() {
             );
           })}
         </View>
-        <Button
-          disabled={selectedIds.length !== step.requiredCount}
-          icon="check"
-          label="Confirmar rol"
-          onPress={() => {
-            const nextGame = assignRole(currentGame, step.roleId, selectedIds, currentTime);
-            setRoleSelections((current) => {
-              const { [step.roleId]: _removed, ...rest } = current;
-              return rest;
-            });
-            void commitGame(nextGame, currentGame, "assign-role");
-            setFirstNightIndex((index) => index + 1);
-          }}
-          variant="primary"
-        />
+        {!isSingleSelection ? (
+          <Button
+            disabled={selectedIds.length !== step.requiredCount}
+            icon="check"
+            label="Confirmar grupo"
+            onPress={() => {
+              void confirmFirstNightRole(currentGame, step, selectedIds, steps.length);
+            }}
+            variant="primary"
+          />
+        ) : null}
       </Card>
+    );
+  }
+
+  function renderTargetGroups(
+    groups: TargetGroups,
+    options: {
+      selectedId?: PlayerId | null;
+      onSelect: (playerId: PlayerId) => void;
+    }
+  ) {
+    return (
+      <View style={styles.targetGroups}>
+        <View style={styles.stack}>
+          <Text style={styles.meta}>Vivos</Text>
+          <View style={styles.chipWrap}>
+            {groups.alive.map(({ player, disabledReason }) => (
+              <PlayerChip
+                disabled={Boolean(disabledReason)}
+                disabledReason={disabledReason}
+                key={player.id}
+                onDisabledPress={showTargetDisabledReason}
+                onPress={() => options.onSelect(player.id)}
+                player={player}
+                selected={options.selectedId === player.id}
+                showSecrets={showSecrets}
+              />
+            ))}
+          </View>
+        </View>
+        {groups.dead.length > 0 ? (
+          <View style={styles.stack}>
+            <Text style={styles.meta}>Muertos</Text>
+            <View style={styles.chipWrap}>
+              {groups.dead.map(({ player, disabledReason }) => (
+                <PlayerChip
+                  disabled
+                  disabledReason={disabledReason ?? "Muerto"}
+                  key={player.id}
+                  onDisabledPress={showTargetDisabledReason}
+                  player={player}
+                  showSecrets={showSecrets}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
+      </View>
     );
   }
 
@@ -844,10 +1011,10 @@ export function MafiApp() {
       return (
         <Card>
           <Text style={styles.sectionTitle}>Resolver noche</Text>
-          <Text style={styles.body}>Las acciones están cargadas. Revisá el preview antes del amanecer.</Text>
+          <Text style={styles.body}>Las acciones están cargadas. Revisá el resultado antes del amanecer.</Text>
           <Button
             icon="weather-sunset-up"
-            label="Calcular preview"
+            label="Ver resultado"
             onPress={() => {
               const resolution = resolveNight({ players: currentGame.players, actions: nightActions });
               setNightPreview(resolution);
@@ -865,33 +1032,23 @@ export function MafiApp() {
     }
 
     const role = roleDefinitions[step.roleId];
+    const actorIds = currentGame.players
+      .filter((player) => player.alive && player.roleId === step.roleId)
+      .map((player) => player.id);
     const targetId = getNightActionTarget(nightActions, step.roleId);
+    const targetGroups = nightActionTargetGroups(currentGame.players, step.roleId, actorIds);
 
     return (
       <Card>
         <Text style={styles.sectionTitle}>{role.name}</Text>
-        <Text style={styles.body}>{nightActionCopy(step.roleId)}</Text>
-        <View style={styles.chipWrap}>
-          {currentGame.players
-            .filter((player) => player.alive)
-            .map((player) => (
-              <PlayerChip
-                key={player.id}
-                disabled={step.roleId === "prostituta" && player.roleId === "prostituta"}
-                onPress={() => setNightActions((current) => setNightActionTarget(current, step.roleId, player.id))}
-                player={player}
-                selected={targetId === player.id}
-                showSecrets={showSecrets}
-              />
-            ))}
-        </View>
-        <Button
-          disabled={!targetId}
-          icon="arrow-right"
-          label="Registrar acción"
-          onPress={() => setNightActionIndex((index) => index + 1)}
-          variant="primary"
-        />
+        <Text style={styles.body}>{nightActionCopy(step.roleId, step.requiredCount)}</Text>
+        {renderTargetGroups(targetGroups, {
+          selectedId: targetId,
+          onSelect: (playerId) => {
+            setNightActions((current) => setNightActionTarget(current, step.roleId, playerId));
+            setNightActionIndex((index) => index + 1);
+          }
+        })}
       </Card>
     );
   }
@@ -900,31 +1057,23 @@ export function MafiApp() {
     if (!nightPreview) {
       return (
         <Card>
-          <Text style={styles.body}>No hay preview calculado.</Text>
+          <Text style={styles.body}>No hay resultado calculado.</Text>
         </Card>
       );
     }
 
     if (nightPreview.pendingLoverPoison) {
       const loverId = nightPreview.pendingLoverPoison.loverId;
+      const targetGroups = loverPoisonTargetGroups(currentGame.players, loverId);
 
       return (
         <Card>
           <Text style={styles.sectionTitle}>Veneno de Romeo/Julieta</Text>
           <Text style={styles.body}>El amante sobreviviente puede llevarse a alguien.</Text>
-          <View style={styles.chipWrap}>
-            {currentGame.players
-              .filter((player) => player.alive && player.id !== loverId && player.roleId !== "romeo" && player.roleId !== "julieta")
-              .map((player) => (
-                <PlayerChip
-                  key={player.id}
-                  onPress={() => setPendingNightPoisonTarget(player.id)}
-                  player={player}
-                  selected={pendingNightPoisonTarget === player.id}
-                  showSecrets={showSecrets}
-                />
-              ))}
-          </View>
+          {renderTargetGroups(targetGroups, {
+            selectedId: pendingNightPoisonTarget,
+            onSelect: setPendingNightPoisonTarget
+          })}
           <Button
             disabled={!pendingNightPoisonTarget}
             icon="skull-outline"
@@ -950,9 +1099,9 @@ export function MafiApp() {
 
     return (
       <Card>
-        <Text style={styles.sectionTitle}>Preview privado</Text>
+        <Text style={styles.sectionTitle}>Información clasificada</Text>
         <Text style={styles.body}>{nightPreview.privateEvents.join("\n") || "Sin efectos."}</Text>
-        <Text style={styles.sectionTitle}>Narración pública</Text>
+        <Text style={styles.sectionTitle}>Anuncio público</Text>
         <Text style={styles.body}>{nightPreview.publicNarration}</Text>
         <Button
           icon="weather-sunny"
@@ -996,6 +1145,7 @@ export function MafiApp() {
     const currentVoterId = session.order[session.index];
     const currentVoter = currentGame.players.find((player) => player.id === currentVoterId);
     const currentAutoVote = currentVoterId ? session.votes[currentVoterId] : undefined;
+    const targetGroups = currentVoterId ? voteTargetGroups(currentGame.players, currentVoterId) : null;
 
     if (session.index < session.order.length && currentVoter) {
       return (
@@ -1014,7 +1164,7 @@ export function MafiApp() {
           </View>
           {currentAutoVote ? (
             <>
-              <Text style={styles.body}>Voto compartido registrado visualmente.</Text>
+              <Text style={styles.body}>Mantené el paso. El voto ya quedó cargado.</Text>
               <Button
                 icon="arrow-right"
                 label="Continuar"
@@ -1023,18 +1173,10 @@ export function MafiApp() {
               />
             </>
           ) : (
-            <View style={styles.chipWrap}>
-              {currentGame.players
-                .filter((player) => player.alive)
-                .map((player) => (
-                  <PlayerChip
-                    key={player.id}
-                    onPress={() => setVotingSession(castCurrentVote(currentGame.players, session, player.id))}
-                    player={player}
-                    showSecrets={showSecrets}
-                  />
-                ))}
-            </View>
+            targetGroups ? renderTargetGroups(targetGroups, {
+              onSelect: (playerId) =>
+                setVotingSession(castCurrentVote(currentGame.players, session, playerId))
+            }) : null
           )}
         </Card>
       );
@@ -1149,6 +1291,14 @@ export function MafiApp() {
             (player.roleId === "romeo" || player.roleId === "julieta")
         )
     );
+    const survivingLover = partnerDies && target
+      ? currentGame.players.find(
+          (player) =>
+            player.alive &&
+            player.id !== target.id &&
+            (player.roleId === "romeo" || player.roleId === "julieta")
+        )
+      : null;
 
     return (
       <Card>
@@ -1157,25 +1307,10 @@ export function MafiApp() {
         {partnerDies ? (
           <>
             <Text style={styles.body}>El vínculo de Romeo/Julieta permite envenenar.</Text>
-            <View style={styles.chipWrap}>
-              {currentGame.players
-                .filter(
-                  (player) =>
-                    player.alive &&
-                    player.id !== lynchTargetId &&
-                    player.roleId !== "romeo" &&
-                    player.roleId !== "julieta"
-                )
-                .map((player) => (
-                  <PlayerChip
-                    key={player.id}
-                    onPress={() => setDayPoisonTargetId(player.id)}
-                    player={player}
-                    selected={dayPoisonTargetId === player.id}
-                    showSecrets={showSecrets}
-                  />
-                ))}
-            </View>
+            {survivingLover ? renderTargetGroups(loverPoisonTargetGroups(currentGame.players, survivingLover.id), {
+              selectedId: dayPoisonTargetId,
+              onSelect: setDayPoisonTargetId
+            }) : null}
           </>
         ) : null}
         <Button
@@ -1212,6 +1347,7 @@ export function MafiApp() {
           onLogs={() => setScreen("logs")}
           onToggleSecrets={() => setShowSecrets((current) => !current)}
           onUndo={() => void undoGame()}
+          showSecretToggle={false}
           showSecrets={showSecrets}
           title="Correcciones"
         />
@@ -1442,33 +1578,40 @@ function profileToState(player: PlayerProfile) {
   };
 }
 
-function setNightActionTarget(
-  actions: NightActions,
-  roleId: RoleId,
-  targetId: PlayerId
-): NightActions {
-  if (roleId === "prostituta") return { ...actions, prostitution: { targetId } };
-  if (roleId === "mafioso") return { ...actions, mafiaAttack: { targetId } };
-  if (roleId === "medico") return { ...actions, doctorProtect: { targetId } };
-  if (roleId === "detective") return { ...actions, detectiveInvestigate: { targetId } };
-
-  return actions;
+function roleActsAtNight(roleId: RoleId): boolean {
+  return roleId === "prostituta" || roleId === "mafioso" || roleId === "medico" || roleId === "detective";
 }
 
-function getNightActionTarget(actions: NightActions, roleId: RoleId): PlayerId | null {
-  if (roleId === "prostituta") return actions.prostitution?.targetId ?? null;
-  if (roleId === "mafioso") return actions.mafiaAttack?.targetId ?? null;
-  if (roleId === "medico") return actions.doctorProtect?.targetId ?? null;
-  if (roleId === "detective") return actions.detectiveInvestigate?.targetId ?? null;
+function identifyRoleCopy(roleId: RoleId, count: number): string {
+  if (count > 1) {
+    return `¿Quiénes son los ${pluralRoleName(roleId)}?`;
+  }
 
-  return null;
+  if (roleId === "abuela" || roleId === "prostituta") {
+    return `¿Quién es la ${roleDefinitions[roleId].name}?`;
+  }
+
+  if (roleId === "mafioso" || roleId === "medico" || roleId === "detective") {
+    return `¿Quién es el ${roleDefinitions[roleId].name}?`;
+  }
+
+  return `¿Quién es ${roleDefinitions[roleId].name}?`;
 }
 
-function nightActionCopy(roleId: RoleId): string {
-  if (roleId === "prostituta") return "Elegí a quién inhibe esta noche.";
-  if (roleId === "mafioso") return "Elegí la víctima del asesinato grupal.";
-  if (roleId === "medico") return "Elegí a quién protege el grupo médico.";
-  if (roleId === "detective") return "Elegí a quién investiga el grupo detective.";
+function pluralRoleName(roleId: RoleId): string {
+  if (roleId === "mafioso") return "Mafiosos";
+  if (roleId === "medico") return "Médicos";
+  if (roleId === "detective") return "Detectives";
+  if (roleId === "civil") return "Civiles";
+
+  return roleDefinitions[roleId].name;
+}
+
+function nightActionCopy(roleId: RoleId, actorCount: number): string {
+  if (roleId === "prostituta") return "¿A quién inhibe esta noche?";
+  if (roleId === "mafioso") return "¿A quién mata la Mafia?";
+  if (roleId === "medico") return actorCount > 1 ? "¿A quién protegen?" : "¿A quién protege?";
+  if (roleId === "detective") return actorCount > 1 ? "¿A quién investigan?" : "¿A quién investiga?";
 
   return "Sin acción nocturna.";
 }
@@ -1564,6 +1707,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: theme.spacing.sm
+  },
+  targetGroups: {
+    gap: theme.spacing.md
   },
   correctionRow: {
     alignItems: "center",

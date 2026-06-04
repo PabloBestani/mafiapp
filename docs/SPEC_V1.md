@@ -414,6 +414,8 @@ La primera noche identifica roles en orden fijo. Cada pantalla muestra chips de 
 
 No debe requerirse botón “Guardar” para cada selección si la acción es simple. Tocar el chip registra la selección o la agrega al grupo correspondiente.
 
+Si se elige un único jugador, tocar el chip confirma la acción. Si se eligen varios, los chips permiten seleccionar/deseleccionar y la confirmación aparece recién al completar la cantidad esperada.
+
 Debe existir deshacer.
 
 ### 10.3. Orden fijo de primera noche
@@ -440,6 +442,8 @@ Ejemplos:
 ### 10.5. Civiles
 
 Los Civiles no se llaman. Al final de la identificación, todo jugador activo sin rol asignado pasa automáticamente a ser Civil.
+
+La inferencia de Civiles es automática y no requiere una confirmación visible de Dios.
 
 ---
 
@@ -476,6 +480,8 @@ No Mafioso
 ```
 
 Solo el rol Mafioso devuelve “Mafioso”.
+
+El Detective no puede investigarse a sí mismo.
 
 Ejemplos:
 
@@ -602,6 +608,8 @@ La vista con ojo no debe reemplazar al log. Solo muestra situación actual.
 
 Durante noche o votación, la app debe priorizar el flujo activo, pero permitir abrir un panel o detalle de situación actual sin perder contexto.
 
+El botón de ojo solo debe aparecer en pantallas donde alternarlo cambia el contenido visible. No debe mostrarse en pantallas ya privadas o en vistas donde no modifica la información renderizada.
+
 ---
 
 ## 14. Log privado y público
@@ -668,6 +676,7 @@ Al iniciar votación:
 - la app elige sentido al azar: horario o antihorario;
 - Dios puede rerollear máximo una vez antes del primer voto;
 - el orden y el reroll se registran en log privado.
+- ningún jugador puede votarse a sí mismo.
 
 ### 15.2. Carga de votos
 
@@ -682,9 +691,9 @@ En pantalla:
 
 ### 15.3. Romeo y Julieta
 
-Cuando le toca votar al segundo integrante de la pareja, la app muestra el paso para no delatar públicamente que hay autovoto, pero registra automáticamente el voto compartido.
+Cuando le toca votar al segundo integrante de la pareja, la app muestra el paso para no delatar públicamente que el voto ya quedó enlazado, pero registra automáticamente el voto compartido.
 
-El autovoto es visible solo en la app de Dios.
+La app debe impedir cualquier voto que produzca autovoto directo o por vínculo.
 
 ### 15.4. Resultado
 

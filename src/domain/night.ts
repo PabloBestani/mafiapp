@@ -261,6 +261,11 @@ function resolveDetectiveAction(
     return null;
   }
 
+  if (aliveDetectives.some((detective) => detective.id === target.id)) {
+    privateEvents.push("El Detective no puede investigarse a sí mismo.");
+    return null;
+  }
+
   const truthful = enabledDetectives.length > 0;
   const truth = isStrictMafia(target);
   const reportedTruth = truthful ? truth : !truth;

@@ -99,7 +99,7 @@ describe("voting", () => {
     });
   });
 
-  it("forces Romeo and Julieta to share vote changes", () => {
+  it("forces Romeo and Julieta to share votes without autovote", () => {
     const lovers = [
       player("romeo", "romeo", 0),
       player("julieta", "julieta", 1),
@@ -115,6 +115,17 @@ describe("voting", () => {
     );
 
     expect(firstVote).toEqual({ romeo: "civil", julieta: "civil" });
-    expect(changedVote).toEqual({ romeo: "romeo", julieta: "romeo" });
+    expect(changedVote).toEqual(firstVote);
+  });
+
+  it("rejects direct and forced autovotes", () => {
+    const lovers = [
+      player("romeo", "romeo", 0),
+      player("julieta", "julieta", 1),
+      player("civil", "civil", 2)
+    ];
+
+    expect(castVoteWithLoverLink(players, {}, "p1", "p1")).toEqual({});
+    expect(castVoteWithLoverLink(lovers, {}, "romeo", "julieta")).toEqual({});
   });
 });

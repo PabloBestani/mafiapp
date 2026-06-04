@@ -8,6 +8,7 @@ import {
   Text,
   View
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { PlayerState, RoleId } from "../domain/types";
 import { roleDefinitions } from "../data/roles";
@@ -20,7 +21,7 @@ interface ScreenProps {
 }
 
 export function Screen({ children }: ScreenProps) {
-  return <View style={styles.screen}>{children}</View>;
+  return <SafeAreaView edges={["top", "left", "right"]} style={styles.screen}>{children}</SafeAreaView>;
 }
 
 interface AppScrollProps {
@@ -182,26 +183,40 @@ interface PlayerChipProps {
   player: Pick<PlayerState, "id" | "name" | "alive" | "roleId">;
   selected?: boolean;
   disabled?: boolean;
+  disabledReason?: string | null;
   showSecrets?: boolean;
   onPress?: () => void;
+  onDisabledPress?: (reason: string) => void;
 }
 
 export function PlayerChip({
   player,
   selected = false,
   disabled = false,
+  disabledReason = null,
   showSecrets = false,
-  onPress
+  onPress,
+  onDisabledPress
 }: PlayerChipProps) {
   const roleName = player.roleId ? roleDefinitions[player.roleId].name : "Sin rol";
+  const pressable = disabled ? Boolean(disabledReason && onDisabledPress) : Boolean(onPress);
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${player.name}${showSecrets ? `, ${roleName}` : ""}`}
       accessibilityState={{ selected, disabled }}
-      disabled={disabled || !onPress}
-      onPress={onPress}
+      disabled={!pressable}
+      onPress={() => {
+        if (disabled) {
+          if (disabledReason) {
+            onDisabledPress?.(disabledReason);
+          }
+          return;
+        }
+
+        onPress?.();
+      }}
       style={({ pressed }) => [
         styles.playerChip,
         selected ? styles.playerChip_selected : null,
@@ -266,6 +281,7 @@ interface PhaseHeaderProps {
   meta: string;
   showSecrets: boolean;
   canUndo: boolean;
+  showSecretToggle?: boolean;
   onToggleSecrets: () => void;
   onUndo: () => void;
   onLogs: () => void;
@@ -277,6 +293,7 @@ export function PhaseHeader({
   meta,
   showSecrets,
   canUndo,
+  showSecretToggle = true,
   onToggleSecrets,
   onUndo,
   onLogs,
@@ -287,16 +304,19 @@ export function PhaseHeader({
       <Pressable accessibilityRole="button" accessibilityLabel="Volver a Home" onPress={onHome}>
         <MaterialCommunityIcons color={theme.colors.textMuted} name="chevron-left" size={28} />
       </Pressable>
+      <Image resizeMode="contain" source={theme.assets.wordmark} style={styles.headerWordmark} />
       <View style={styles.phaseTitleWrap}>
         <Text style={styles.phaseTitle}>{title}</Text>
         <Text style={styles.phaseMeta}>{meta}</Text>
       </View>
-      <IconButton
-        active={showSecrets}
-        icon={showSecrets ? "eye-off-outline" : "eye-outline"}
-        label={showSecrets ? "Ocultar secretos" : "Mostrar secretos"}
-        onPress={onToggleSecrets}
-      />
+      {showSecretToggle ? (
+        <IconButton
+          active={showSecrets}
+          icon={showSecrets ? "eye-off-outline" : "eye-outline"}
+          label={showSecrets ? "Ocultar secretos" : "Mostrar secretos"}
+          onPress={onToggleSecrets}
+        />
+      ) : null}
       <IconButton
         disabled={!canUndo}
         icon="undo-variant"
@@ -314,14 +334,32 @@ interface BottomActionBarProps {
 }
 
 export function BottomActionBar({ primary, secondary }: BottomActionBarProps) {
+  const insets = useSafeAreaInsets();
+
   if (!primary && !secondary) {
     return null;
   }
 
   return (
-    <View style={styles.bottomBar}>
+    <View style={[styles.bottomBar, { paddingBottom: Math.max(theme.spacing.md, insets.bottom) }]}>
       {secondary ? <Button {...secondary} /> : null}
       {primary ? <Button {...primary} variant={primary.variant ?? "primary"} /> : null}
+    </View>
+  );
+}
+
+interface HintToastProps {
+  message: string | null;
+}
+
+export function HintToast({ message }: HintToastProps) {
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <View pointerEvents="none" style={styles.hintToast}>
+      <Text style={styles.hintToastText}>{message}</Text>
     </View>
   );
 }
@@ -380,9 +418,10 @@ const styles = StyleSheet.create({
     flex: 1
   },
   scrollContent: {
+    flexGrow: 1,
     gap: theme.spacing.md,
     padding: theme.layout.screenPadding,
-    paddingTop: 56
+    paddingTop: theme.spacing.md
   },
   card: {
     backgroundColor: theme.colors.surface,
@@ -591,6 +630,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
     paddingTop: theme.spacing.sm
   },
+  headerWordmark: {
+    height: 34,
+    width: 72
+  },
   phaseTitleWrap: {
     flex: 1,
     minWidth: 0
@@ -615,6 +658,22 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     position: "absolute",
     right: 0
+  },
+  hintToast: {
+    alignSelf: "center",
+    backgroundColor: theme.colors.surfaceAlt,
+    borderColor: theme.colors.borderStrong,
+    borderRadius: theme.radius.pill,
+    borderWidth: 1,
+    bottom: theme.layout.bottomBarMinHeight + theme.spacing.md,
+    maxWidth: "86%",
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    position: "absolute"
+  },
+  hintToastText: {
+    ...theme.typography.label,
+    color: theme.colors.text
   },
   logGrid: {
     gap: theme.spacing.md

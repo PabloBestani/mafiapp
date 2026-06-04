@@ -70,7 +70,8 @@ export const zIndex = {
 } as const;
 
 export const assets = {
-  cardBack: require("../../../assets/brand/mafiapp-card-back.jpg")
+  cardBack: require("../../../assets/brand/mafiapp-card-back.jpg"),
+  wordmark: require("../../../assets/brand/mafiapp-wordmark.png")
 } as const;
 
 export const theme = {

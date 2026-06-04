@@ -53,6 +53,10 @@ export function castVoteWithLoverLink(
     return currentVotes;
   }
 
+  if (targetId === voter.id) {
+    return currentVotes;
+  }
+
   const nextVotes: VoteMap = {
     ...currentVotes,
     [voter.id]: targetId
@@ -67,6 +71,10 @@ export function castVoteWithLoverLink(
     );
 
     if (partner) {
+      if (partner.id === targetId) {
+        return currentVotes;
+      }
+
       nextVotes[partner.id] = targetId;
     }
   }

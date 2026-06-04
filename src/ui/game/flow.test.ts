@@ -90,10 +90,10 @@ describe("voting flow", () => {
     ]);
     const first = createVotingSession(game.players, () => 0);
     const rerolled = rerollVotingSession(game.players, first, () => 0.9);
-    const voted = castCurrentVote(game.players, rerolled, "p3");
+    const voted = castCurrentVote(game.players, rerolled, "p1");
 
     expect(rerolled.rerolled).toBe(true);
-    expect(Object.values(voted.votes)).toContain("p3");
+    expect(Object.values(voted.votes)).toContain("p1");
     expect(rerollVotingSession(game.players, voted, () => 0)).toBe(voted);
   });
 

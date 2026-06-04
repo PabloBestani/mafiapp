@@ -5,12 +5,35 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "assetBundlePatterns": ["**/*"],
+    "backgroundColor": "#080909",
+    "icon": "./assets/app/icon.png",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false
     },
     "android": {
-      "package": "com.mafiapp.mobile"
-    }
+      "package": "com.mafiapp.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/app/adaptive-icon.png",
+        "backgroundColor": "#080909"
+      }
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#080909",
+          "image": "./assets/app/splash.png",
+          "imageWidth": 260,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#080909",
+            "image": "./assets/app/splash.png"
+          }
+        }
+      ]
+    ]
   }
 }

@@ -205,6 +205,7 @@ Reglas:
 Reglas:
 
 - Uno o más Detectives vivos eligen a un jugador vivo para investigar.
+- No pueden investigarse a sí mismos.
 - La respuesta es “Mafioso” solo si el objetivo es Mafioso estricto.
 - Para todos los demás roles, incluyendo Prostituta, Civil, Médico, Detective, Abuela, Romeo y Julieta, la respuesta es “No Mafioso”.
 - Si la investigación efectiva queda cancelada porque todos los Detectives vivos fueron inhibidos, Dios informa el opuesto de la verdad.
@@ -247,8 +248,8 @@ Reglas de voto:
 - Comparten voto forzosamente durante el día.
 - Si uno vota primero, el otro vota lo mismo.
 - Si uno cambia voto, el otro cambia automáticamente.
-- Cuando le toca votar al segundo amante, la app debe mostrar igualmente el paso visual para no delatar públicamente el autovoto.
-- El autovoto solo es visible en la app de Dios.
+- Ningún jugador puede votarse a sí mismo, ni de forma directa ni por vínculo.
+- Cuando le toca votar al segundo amante, la app debe mostrar igualmente el paso visual para no delatar públicamente que el voto ya quedó enlazado.
 - La penalización por no cumplir teatralmente el voto compartido queda fuera de V1 y se tratará como regla social futura.
 
 Reglas de muerte y veneno:
@@ -306,7 +307,7 @@ Quedan fuera de la V1, pero deben ser discutidas en iteraciones futuras:
 
 - penalización por muertos que hablan;
 - penalización por gestos o revelaciones indirectas;
-- penalización o advertencia cuando Romeo/Julieta no votan teatralmente igual aunque la app los autovote;
+- penalización o advertencia cuando Romeo/Julieta no votan teatralmente igual aunque la app enlace el voto;
 - soporte para pantalla pública;
 - helper avanzado de interacciones complejas por carta.
 
