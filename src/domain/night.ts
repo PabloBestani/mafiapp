@@ -83,7 +83,7 @@ export function resolveNight(input: NightResolutionInput): NightResolution {
     prostitutionTarget.id !== prostitute.id
   ) {
     inhibitedIds.add(prostitutionTarget.id);
-    privateEvents.push(`${prostitute.name} inhibio a ${prostitutionTarget.name}.`);
+    privateEvents.push(`${prostitute.name} inhibió a ${prostitutionTarget.name}.`);
   }
 
   const grandma = findAliveRole(players, "abuela")[0] ?? null;
@@ -94,7 +94,7 @@ export function resolveNight(input: NightResolutionInput): NightResolution {
 
   if (mafiaTarget && enabledMafias.length > 0) {
     if (enabledMafias.length === 1 && enabledMafias[0]?.id === mafiaTarget.id) {
-      privateEvents.push("El ultimo Mafioso vivo no puede matarse a si mismo.");
+      privateEvents.push("El último Mafioso vivo no puede matarse a sí mismo.");
     } else if (grandma && mafiaTarget.id === grandma.id && !grandmaInhibited) {
       addGrandmaShot(
         players,
@@ -107,7 +107,7 @@ export function resolveNight(input: NightResolutionInput): NightResolution {
       );
     } else {
       commonKillAttempts.push({ targetId: mafiaTarget.id, source: "MAFIA" });
-      privateEvents.push(`La Mafia intento matar a ${mafiaTarget.name}.`);
+      privateEvents.push(`La Mafia intentó matar a ${mafiaTarget.name}.`);
     }
   }
 
@@ -117,7 +117,7 @@ export function resolveNight(input: NightResolutionInput): NightResolution {
   if (doctorTarget && enabledDoctors.length > 0) {
     if (grandma && doctorTarget.id === grandma.id && !grandmaInhibited) {
       privateEvents.push(
-        "Los Medicos apuntaron a la Abuela; la proteccion no se aplica."
+        "Los Médicos apuntaron a la Abuela; la protección no se aplica."
       );
       addGrandmaShot(
         players,
@@ -126,11 +126,11 @@ export function resolveNight(input: NightResolutionInput): NightResolution {
         commonKillAttempts,
         privateEvents,
         random,
-        "Medicos"
+        "Médicos"
       );
     } else {
       protectedId = doctorTarget.id;
-      privateEvents.push(`Los Medicos protegieron a ${doctorTarget.name}.`);
+      privateEvents.push(`Los Médicos protegieron a ${doctorTarget.name}.`);
     }
   }
 
@@ -237,7 +237,7 @@ function addGrandmaShot(
 
   commonKillAttempts.push({ targetId: victim.id, source: "GRANDMA" });
   privateEvents.push(
-    `La Abuela disparo contra ${victim.name} porque ${sourceLabel} la apunto.`
+    `La Abuela disparó contra ${victim.name} porque ${sourceLabel} la apuntó.`
   );
 }
 
@@ -316,19 +316,19 @@ function applyCommonKills(
 
     if (target.id === protectedId) {
       savedIds.add(target.id);
-      privateEvents.push(`${target.name} fue salvado por los Medicos.`);
+      privateEvents.push(`${target.name} fue salvado por los Médicos.`);
       return;
     }
 
     if (grandma && target.id === grandma.id && !grandmaInhibited) {
       savedIds.add(target.id);
-      privateEvents.push("La Abuela resistio un asesinato comun por su blindaje.");
+      privateEvents.push("La Abuela resistió un asesinato común por su blindaje.");
       return;
     }
 
     target.alive = false;
     deaths.push({ playerId: target.id, type: "COMMON_MURDER", source: attempt.source });
-    privateEvents.push(`${target.name} murio por asesinato comun.`);
+    privateEvents.push(`${target.name} murió por asesinato común.`);
   });
 }
 
@@ -367,10 +367,10 @@ function resolveLoverLink(
     type: "LINK",
     source: "ROMEO_JULIETA"
   });
-  privateEvents.push(`${survivor.name} murio por vinculo de Romeo y Julieta.`);
+  privateEvents.push(`${survivor.name} murió por vínculo de Romeo y Julieta.`);
 
   if (inhibitedIds.has(survivor.id)) {
-    privateEvents.push(`${survivor.name} estaba inhibido y no enveneno.`);
+    privateEvents.push(`${survivor.name} estaba inhibido y no envenenó.`);
     return { pendingLoverPoison: null };
   }
 
@@ -390,7 +390,7 @@ function resolveLoverLink(
     type: "POISON",
     source: "ROMEO_JULIETA"
   });
-  privateEvents.push(`${survivor.name} enveneno a ${target.name}.`);
+  privateEvents.push(`${survivor.name} envenenó a ${target.name}.`);
 
   return { pendingLoverPoison: null };
 }
@@ -412,11 +412,11 @@ function buildPublicNarration(
     .filter((name): name is string => Boolean(name));
 
   if (deadNames.length === 0) {
-    return "La ciudad despierta.\nNo murio nadie.";
+    return "La ciudad despierta.\nNo murió nadie.";
   }
 
   if (deadNames.length === 1) {
-    return `La ciudad despierta.\nMurio ${deadNames[0]}.`;
+    return `La ciudad despierta.\nMurió ${deadNames[0]}.`;
   }
 
   return `La ciudad despierta.\nMurieron ${deadNames.join(", ")}.`;

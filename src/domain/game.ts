@@ -28,7 +28,7 @@ export function cancelGame(game: GameState): GameState {
       {
         id: `${game.id}:cancelled:${game.privateLog.length + 1}`,
         event: "GAME_CANCELLED",
-        message: "Dios cancelo la partida.",
+        message: "Dios canceló la partida.",
         createdAt: new Date().toISOString()
       }
     ]

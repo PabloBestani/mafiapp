@@ -27,7 +27,7 @@ export const roleDefinitions: Record<RoleId, RoleDefinition> = {
   },
   medico: {
     id: "medico",
-    name: "Medico",
+    name: "Médico",
     team: "pueblo",
     strictMafia: false,
     countsAsNonMafiaAlive: true,
